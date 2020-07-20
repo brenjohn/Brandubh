@@ -1,0 +1,32 @@
+Clean up file/directory structure
+
+write unit tests (especially for the four plane encoder to make sure it's encoding and expanding data properly. Can try creating a board and a move, then transposing them by hand and rotating them, then do the same with the encoder and compare them. This could explain why We've been seeing no improvment of the bots if this part doesn't encode/work properly)
+
+create utils file for functions like: print board, print title
+
+Try clean up how visit_counts are collected for training ZeroBot (maybe change TreeNode.branches from a dictionary to an ordered list or ordered dictionary imported from collections)
+
+Randomly ran into a game (while evaluating a zerobot against old version) where select_branch() method errored on line 122 max(node.move(),key): node.move() returned empty array - this should never be empty.
+
+When passing a turn, there should be a check to see if there are any legal moves, should only pass turn if no legal moves can be made
+
+I dont think the following move should have resulted in a win for black but it does.
+
+   A B C D E F G        It is white's turn
+ +---------------+      previous move: black G5 F5
+0| = . x x . x = |0
+1| o . . . . . . |1
+2| . . . . o . o |2
+3| . . . = . . . |3
+4| . . . . . . x |4
+5| . . . x . x . |5
+6| = . . . o . = |6
+ +---------------+ 
+   A B C D E F G
+The winner is black
+
+Play against zero bot
+
+When saving a bot/old_bot, would be nice if expected directory is created if it doesn't already exist. (bot.save_bot, bot.save_as_old_bot)
+
+Replace transpose_policy and flip policy in FourPlaneEncoder with a transform_policy function that does both to reduce code duplication.
