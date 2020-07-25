@@ -6,14 +6,19 @@ Created on Sun Jun 21 19:28:27 2020
 @author: john
 """
 import numpy as np
+import random
 
 from brandubh import GameState
 
 
 
-def simulate_game(bot):
+def simulate_game(bot, starting_board=None):
     
-    game = GameState.new_game()
+    if starting_board:
+        game = GameState.new_game(starting_board)
+    else:
+        game = GameState.new_game()
+        
     boards, moves, prior_targets, players = [], [], [], []
     
     while game.is_not_over():
@@ -38,7 +43,8 @@ def simulate_game(bot):
     return boards, moves, prior_targets, players, game.winner
 
 
-def gain_experience(bot, num_episodes):
+def gain_experience(bot, num_episodes, num_white_pieces = None, 
+                                       num_black_pieces = None):
     
     experience = []
     
@@ -50,7 +56,14 @@ def gain_experience(bot, num_episodes):
                   'players': [],
                   'winner': 0}
         
-        boards, moves, prior_targets, players, winner = simulate_game(bot)
+        if num_black_pieces == None or num_white_pieces == None:
+            board = None
+        else:
+            board = random_starting_position(num_white_pieces,
+                                             num_black_pieces)
+            
+        boards, moves, prior_targets, players, winner = simulate_game(bot, 
+                                                                      board)
         
         episode['boards'] = boards
         episode['moves'] = moves
@@ -89,3 +102,26 @@ def create_training_data(bot, experience):
     rewards = np.concatenate(8*rewards)
         
     return X, Y, rewards
+
+
+def random_starting_position(num_white_pieces, num_black_pieces):
+    board = {}
+    for i in range(7):
+        for j in range(7):
+            board[(i,j)] = 0
+
+    # Set up the black pieces
+    black_positions = [(3, 0), (3, 1), (3, 5), (3, 6),
+                       (0, 3), (1, 3), (5, 3), (6, 3)]
+    for square in random.sample(black_positions, num_black_pieces):
+        board[square] = -1
+
+    # Set up the white pieces
+    white_positions = [(3, 2), (3, 3), (2, 3), (4, 3)]
+    for square in random.sample(white_positions, num_white_pieces):
+        board[square] = 1
+
+    # Place the king piece in the centre
+    board[(3,3)] = 2
+    
+    return board

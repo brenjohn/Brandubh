@@ -12,6 +12,7 @@ import copy
 from bots.four_plane_encoder import FourPlaneEncoder
 from brandubh import Act, GameState
 from bots.random_bot import RandomBot
+from zero_training_utils import random_starting_position
 from keras.models import load_model
 
 
@@ -214,7 +215,9 @@ class ZeroBot:
         
         return max(node.moves(), key=branch_score)
     
-    def evaluate_against_bot(self, opponent_bot, num_games):
+    def evaluate_against_bot(self, opponent_bot, num_games, 
+                             num_white_pieces = None, 
+                             num_black_pieces = None):
         zero_bot_player = 1
         score = 0
         num_games_won_as_black = 0
@@ -222,7 +225,13 @@ class ZeroBot:
         
         for i in range(num_games):
             print('\rPlaying game {0}'.format(i),end='')
-            game = GameState.new_game()
+            
+            if num_white_pieces or num_black_pieces:
+                starting_board = random_starting_position(num_white_pieces, 
+                                                          num_black_pieces)
+                game = GameState.new_game(starting_board)
+            else:
+                game = GameState.new_game()
             
             max_num_of_turns = 1000
             turns_taken = 0
@@ -260,17 +269,25 @@ class ZeroBot:
                 2*num_games_won_as_black/num_games, 
                 num_games, len(self.loss_history)]
     
-    def evaluate_against_rand_bot(self, num_games):
+    def evaluate_against_rand_bot(self, num_games, 
+                                  num_white_pieces = None, 
+                                  num_black_pieces = None):
         print('Evaluating against random bot')
-        results = self.evaluate_against_bot(self.rand_bot, num_games)
+        results = self.evaluate_against_bot(self.rand_bot, num_games,
+                                            num_white_pieces, 
+                                            num_black_pieces)
         self.evaluation_history_ran.append(results)
         
-    def evaluate_against_old_bot(self, num_games, 
+    def evaluate_against_old_bot(self, num_games,
+                                 num_white_pieces = None, 
+                                 num_black_pieces = None,
                                  prefix="model_data/old_bot/"):
         print('Evaluating against old bot')
         old_bot = ZeroBot(1)
         old_bot.load_old_bot(prefix)
-        results = self.evaluate_against_bot(old_bot, num_games)
+        results = self.evaluate_against_bot(old_bot, num_games,
+                                            num_white_pieces, 
+                                            num_black_pieces)
         self.evaluation_history_old.append(results)
         
     def save_losses(self, loss_history):

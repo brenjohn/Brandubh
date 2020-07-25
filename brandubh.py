@@ -185,10 +185,8 @@ class GameSet:
         This method updates the lists white_pieces and black_pieces
         with the current positions of the board pieces
         """
-        keys = list(self.board.keys())
-        vals = list(self.board.values())
-        self.white_pieces = [keys[i] for i, val in enumerate(vals) if val > 0]
-        self.black_pieces = [keys[i] for i, val in enumerate(vals) if val < 0]
+        self.white_pieces = [key for key, val in self.board.items() if val > 0]
+        self.black_pieces = [key for key, val in self.board.items() if val < 0]
 
 
 
@@ -276,29 +274,33 @@ class GameState:
 
 
     @classmethod
-    def new_game(cls):
+    def new_game(cls, board = None):
         """
         This class method returns a GameState object for a new game by
-        setting the board and giving the black player the first move
+        setting the board and giving the black player the first move.
+        
+        If a board position is supplied, it will be used as the starting
+        position.
         """
-        # Create a dictionary for the board
-        board = {}
-        for i in range(7):
-            for j in range(7):
-                board[(i,j)] = 0
-
-        # Set up the black pieces
-        for i in [0, 1, 5, 6]:
-            board[(3, i)] = -1
-            board[(i, 3)] = -1
-
-        # Set up the white pieces
-        for i in [2, 4]:
-            board[(3,i)] = 1
-            board[(i,3)] = 1
-
-        # Place the king piece in the centre
-        board[(3,3)] = 2
+        if not board:
+            # Create a dictionary for the board
+            board = {}
+            for i in range(7):
+                for j in range(7):
+                    board[(i,j)] = 0
+    
+            # Set up the black pieces
+            for i in [0, 1, 5, 6]:
+                board[(3, i)] = -1
+                board[(i, 3)] = -1
+    
+            # Set up the white pieces
+            for i in [2, 4]:
+                board[(3,i)] = 1
+                board[(i,3)] = 1
+    
+            # Place the king piece in the centre
+            board[(3,3)] = 2
 
         game_set = GameSet()
         game_set.set_board(board)
