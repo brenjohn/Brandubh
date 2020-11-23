@@ -24,11 +24,14 @@ from keras.layers import Activation, LeakyReLU, add
 
 
 # %% Build a model similar to the one used by AlphaZero
+from keras import regularizers
+reg_const = 0.0001
 
 def conv_layer(x, filters, kernel_size):
     
     x = Conv2D(filters, kernel_size, use_bias = False,
-               padding = 'same', activation = 'linear')(x)
+               padding = 'same', activation = 'linear',
+               kernel_regularizer = regularizers.l2(reg_const))(x)
     # x = BatchNormalization(axis=1)(x)
     x = LeakyReLU()(x)
     return x
@@ -37,7 +40,8 @@ def residual_layer(input_block, filters, kernel_size):
     
     x = conv_layer(input_block, filters, kernel_size)
     x = Conv2D(filters, kernel_size, use_bias = False,
-               padding = 'same', activation = 'linear')(x)
+               padding = 'same', activation = 'linear',
+               kernel_regularizer = regularizers.l2(reg_const))(x)
     # x = BatchNormalization(axis=1)(x)
     x = add([input_block, x])
     x = LeakyReLU()(x)
@@ -46,27 +50,33 @@ def residual_layer(input_block, filters, kernel_size):
 def value_head(x):
     
     x = Conv2D(filters = 1, kernel_size = (1, 1), use_bias = False,
-               padding = 'same', activation = 'linear')(x)
+               padding = 'same', activation = 'linear',
+               kernel_regularizer = regularizers.l2(reg_const))(x)
     # x = BatchNormalization(axis=1)(x)
     x = LeakyReLU()(x)
     x = Flatten()(x)
     x = Dense(20, use_bias = False, 
-              activation = 'linear')(x)
+              activation = 'linear',
+              kernel_regularizer = regularizers.l2(reg_const))(x)
     x = LeakyReLU()(x)
-    x = Dense(1, use_bias = False, activation = 'tanh', name = 'value_head')(x)
+    x = Dense(1, use_bias = False, activation = 'tanh', name = 'value_head',
+              kernel_regularizer = regularizers.l2(reg_const))(x)
     return x
 
 def policy_head(x):
     x = Conv2D(filters = 2, kernel_size = (1, 1), use_bias = False,
-               padding = 'same', activation = 'linear')(x)
+               padding = 'same', activation = 'linear',
+               kernel_regularizer = regularizers.l2(reg_const))(x)
     # x = BatchNormalization(axis=1)(x)
     x = LeakyReLU()(x)
     x = Flatten()(x)
     x = Dense(96, use_bias = False, 
-              activation = 'linear')(x)
+              activation = 'linear',
+              kernel_regularizer = regularizers.l2(reg_const))(x)
     x = LeakyReLU()(x)
-    x = Dense(1, use_bias = False, activation = 'softmax', 
-              name = 'policy_head')(x)
+    x = Dense(96, use_bias = False, activation = 'softmax', 
+              name = 'policy_head',
+              kernel_regularizer = regularizers.l2(reg_const))(x)
     return x
 
 def build_zero_model():
@@ -74,7 +84,7 @@ def build_zero_model():
     board_input = Input(shape=(7,7,4), name='board_input')
     
     processed_board = conv_layer(board_input, 64, (3, 3))
-    for i in range(4):
+    for i in range(3):
         processed_board = residual_layer(processed_board, 64, (3, 3))
         
     value_output = value_head(processed_board)
@@ -86,19 +96,19 @@ def build_zero_model():
 
 model = build_zero_model()
 model.summary()
-bot = ZeroBot(50, model)
+bot = ZeroBot(100, model)
 
 
 # %% Create a neural network for a ZeroBot
 
 board_input = Input(shape=(7,7,4), name='board_input')
 
-processed_board = Conv2D(32, (3, 3), 
+processed_board = Conv2D(16, (3, 3), 
                          padding='same',
                          activation='relu')(board_input)
 for i in range(4):
     skip = processed_board
-    processed_board = Conv2D(32, (3, 3), 
+    processed_board = Conv2D(16, (3, 3), 
                              padding='same',
                              activation='relu')(processed_board)
     processed_board = add([processed_board, skip])
@@ -110,14 +120,14 @@ policy_output = Dense(96, activation='softmax')(policy_hidden)
 
 # value_conv = Conv2D(1, (1, 1), activation='relu')(processed_board)
 value_flat = Flatten()(processed_board)
-value_hidden = Dense(68, activation='relu')(value_flat)
+value_hidden = Dense(64, activation='relu')(value_flat)
 value_output = Dense(1, activation='tanh')(value_hidden)
 
 model = Model(inputs=board_input, 
               outputs=[policy_output, value_output])
 model.summary()
 
-bot = ZeroBot(15, model)
+bot = ZeroBot(36, model)
 
 
 
@@ -137,16 +147,23 @@ bot.model.compile(optimizer=keras.optimizers.SGD(lr=0.0000001,
 
 
 # %%
-bot.model.compile(optimizer=keras.optimizers.Adam(lr=0.000008),
+bot.model.compile(optimizer=keras.optimizers.Adam(lr=0.000002),
                   loss=['categorical_crossentropy', 'mse'],
                   loss_weights=[1.0, 1.0])
 
 
 
 # %% Evaluate the bot
-num_games = 1; num_white_pieces = 0; num_black_pieces = 3
+num_games = 100; num_white_pieces = 4; num_black_pieces = 8
 bot.evaluate_against_old_bot(num_games, num_white_pieces, num_black_pieces)
 bot.evaluate_against_rand_bot(num_games, num_white_pieces, num_black_pieces)
+
+
+
+# %% Evaluate the bot
+num_games = 100
+bot.evaluate_against_old_bot(num_games)
+bot.evaluate_against_rand_bot(num_games)
 
 
 
@@ -169,21 +186,25 @@ bot = copy.deepcopy(zero_bot_base)
 
 
 # %% train the bot
+import numpy as np
 
 num_episodes = 1
 num_cycles = 1
-num_white_pieces = 0; num_black_pieces = 4
+
+max_num_black_pieces = 2
+max_num_white_pieces = 2
 
 for cycle in range(num_cycles):
+    
     print('\nGainning experience, cycle {0}'.format(cycle))
     experience = gain_experience(bot, num_episodes, 
-                                 num_white_pieces, num_black_pieces)
+                                 max_num_white_pieces, max_num_black_pieces)
     
     print('Preparing training data')
     X, Y, rewards = create_training_data(bot, experience)
     
     print('\nTraining network, cycle {0}'.format(cycle))
-    losses = bot.model.fit(X, [Y, rewards], batch_size=128, epochs=1)
+    losses = bot.model.fit(X, [Y, rewards], batch_size=512, epochs=1)
     bot.save_losses(losses)
     
     
@@ -253,3 +274,24 @@ for _ in range(1):
     
 print('\nTraining network, cycle {0}'.format(cycle))
 bot.model.fit(X, [Y, rewards], batch_size=128, epochs=1)
+
+# %%
+num_games = 100; num_white_pieces = 0; num_black_pieces = 7
+bot.evaluate_against_old_bot(num_games, num_white_pieces, num_black_pieces)
+bot.evaluate_against_rand_bot(num_games, num_white_pieces, num_black_pieces)
+
+num_episodes = 10
+num_cycles = 10
+num_white_pieces = 0; num_black_pieces = 8
+
+for cycle in range(num_cycles):
+    print('\nGainning experience, cycle {0}'.format(cycle))
+    experience = gain_experience(bot, num_episodes, 
+                                 num_white_pieces, num_black_pieces)
+    
+    print('Preparing training data')
+    X, Y, rewards = create_training_data(bot, experience)
+    
+    print('\nTraining network, cycle {0}'.format(cycle))
+    losses = bot.model.fit(X, [Y, rewards], batch_size=128, epochs=1)
+    bot.save_losses(losses)

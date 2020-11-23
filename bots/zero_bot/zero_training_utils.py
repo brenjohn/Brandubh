@@ -43,8 +43,8 @@ def simulate_game(bot, starting_board=None):
     return boards, moves, prior_targets, players, game.winner
 
 
-def gain_experience(bot, num_episodes, num_white_pieces = None, 
-                                       num_black_pieces = None):
+def gain_experience(bot, num_episodes, max_num_white_pieces = None, 
+                                       max_num_black_pieces = None):
     
     experience = []
     
@@ -56,9 +56,11 @@ def gain_experience(bot, num_episodes, num_white_pieces = None,
                   'players': [],
                   'winner': 0}
         
-        if num_black_pieces == None or num_white_pieces == None:
+        if max_num_black_pieces == None or max_num_white_pieces == None:
             board = None
         else:
+            num_white_pieces = random.randint(0, max_num_white_pieces)
+            num_black_pieces = random.randint(1, max_num_black_pieces)
             board = random_starting_position(num_white_pieces,
                                              num_black_pieces)
             
@@ -91,7 +93,10 @@ def create_training_data(bot, experience):
         total_visits = np.sum(visit_counts, axis=1).reshape(num_moves, 1)
         policy_targets = visit_counts / total_visits
         
-        rewards.append( episode['winner'] * np.array(episode['players']) )
+        episode_rewards = episode['winner'] * np.array(episode['players'])
+        episode_rewards = 1.1*np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
+                                 ) * episode_rewards - 0.1
+        rewards.append( episode_rewards )
         
         Y.append( policy_targets )
         

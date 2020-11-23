@@ -12,7 +12,7 @@ import copy
 from bots.four_plane_encoder import FourPlaneEncoder
 from brandubh import Act, GameState
 from bots.random_bot import RandomBot
-from zero_training_utils import random_starting_position
+from bots.zero_bot.zero_training_utils import random_starting_position
 from keras.models import load_model
 
 
@@ -224,7 +224,8 @@ class ZeroBot:
         num_games_won_as_white = 0
         
         for i in range(num_games):
-            print('\rPlaying game {0}'.format(i),end='')
+            print('\rPlaying game {0}, score: w = {1}, b = {2}'.format(i, 
+                    num_games_won_as_white, num_games_won_as_black),end='')
             
             if num_white_pieces or num_black_pieces:
                 starting_board = random_starting_position(num_white_pieces, 
