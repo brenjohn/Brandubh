@@ -115,18 +115,22 @@ class ZeroBot:
             if node.state.is_not_over():
                 new_state = copy.deepcopy(node.state)
                 new_state.take_turn_with_no_checks(Act.play(next_move))
-                child_node = self.create_node(new_state, parent=node)
+                child_node = self.create_node(new_state, 
+                                              move=next_move, parent=node)
                 move = next_move
                 value = -1 * child_node.value 
             else:
+                # If the game in the current state is over, then the last
+                # player must have won the game. Thus the value/reward for the
+                # other player is 1. The current node is not updated with
+                # the new reward as no branches can stem from a finished game
+                # state.
                 move = node.last_move
-                # Value of finished board position is 1 if current player 
-                # is winner and -1 otherwise.
-                value = -1 * node.state.winner * node.state.player
                 node = node.parent
+                value = 1
             
             # Update the nodes traversed to get to the leaf node with the 
-            # new new values induced by the new move.
+            # new value for the new move.
             while node is not None:
                 node.record_visit(move, value)
                 move = node.last_move
@@ -142,7 +146,7 @@ class ZeroBot:
                             for move in ordered_moves]
                 
         # Get a list of possible moves sorted according to visit count,
-        # with the move with the highest visit count appearing first.
+        # the move with the highest visit count should be first in the list.
         moves = [move for move in root.moves()]
         moves = sorted(moves, key=root.visit_count, reverse=True)
         
@@ -163,8 +167,8 @@ class ZeroBot:
         This method creates a tree node for the given board position and adds
         it to the tree structure. It will be linked to the given parent node
         and the given move is stored as the last move taken to produce the
-        given game state. This is useful for updating the tree structure 
-        when other nodes are added to it.
+        given game state. This is useful for trversing and updating the tree 
+        structure when other nodes are added to it.
         """
         # Pass the game state to the neural network to both evaluate the 
         # how good the board position is and get the prior probability
@@ -174,7 +178,7 @@ class ZeroBot:
         priors, value = self.model.predict(model_input)
         priors, value = priors[0], value[0][0]
         
-        # If a root node is being created, then added some dirichlet noise
+        # If a root node is being created, then add some dirichlet noise
         # to the prior probabilities to help exploration.
         if parent == None:
             dirichlet_noise = np.random.dirichlet([self.alpha]*96)
@@ -185,7 +189,8 @@ class ZeroBot:
         move_priors = {self.encoder.decode_move_index(game_state, idx): prior
                        for idx, prior in enumerate(priors)}
         
-        # Create the node for the given game state and attach it to the tree.
+        # Create the node for the given game state, with the predicted value
+        # and priors, and attach it to the tree.
         new_node = TreeNode(game_state, value, move_priors, parent, move)
         if parent is not None:
             parent.add_child(move, new_node)
@@ -213,7 +218,17 @@ class ZeroBot:
             n = node.visit_count(move)
             return q + self.c * p * np.sqrt(total_n)/(1+n)
         
-        return max(node.moves(), key=branch_score)
+        moves = node.moves()
+        if moves:
+            return max(moves, key=branch_score)
+        else:
+            # If moves is empty then no legal moves can be made from the game
+            # state corresponding to the given node.
+            # TODO: The select_move algorithm should interperet this as a pass
+            # but currently doesn't which may lead in undefined behaviour
+            # in special rare game states where the game is not over but a
+            # player cannot legally make a move.
+            return None
     
     def evaluate_against_bot(self, opponent_bot, num_games, 
                              num_white_pieces = None, 
@@ -363,6 +378,9 @@ class TreeNode:
         
     def has_child(self, move):
         return move in self.children
+    
+    def get_child(self, move):
+        return self.children[move]
     
     def expected_value(self, move):
         branch = self.branches[move]

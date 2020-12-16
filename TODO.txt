@@ -30,3 +30,7 @@ Play against zero bot
 When saving a bot/old_bot, would be nice if expected directory is created if it doesn't already exist. (bot.save_bot, bot.save_as_old_bot)
 
 Replace transpose_policy and flip policy in FourPlaneEncoder with a transform_policy function that does both to reduce code duplication.
+
+Get evaluation functions to print out current score while evaluating.
+
+Update branch_score function so that it isn't nested inside the select_branch function.
