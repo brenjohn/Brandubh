@@ -12,7 +12,7 @@ from brandubh import GameState
 
 
 
-def simulate_game(bot, starting_board=None):
+def simulate_game(bot, starting_board=None, max_moves=0):
     
     if starting_board:
         game = GameState.new_game(starting_board)
@@ -20,16 +20,22 @@ def simulate_game(bot, starting_board=None):
         game = GameState.new_game()
         
     boards, moves, prior_targets, players = [], [], [], []
+    if max_moves == 0:
+        num_moves = -1
+    else:
+        max_moves = abs(max_moves)
+        num_moves = 0
     
-    while game.is_not_over():
-        action, visit_counts = bot.select_move(game, return_visit_counts=True)
+    while game.is_not_over() and num_moves < max_moves:
+        action, visit_counts = bot.select_move(game, 
+                                               return_visit_counts=True)
         
         if action.is_play:
             board_tensor = bot.encoder.encode(game)
             boards.append(board_tensor)
         
-            # Can probably avoid calc pieces here by getting return move to
-            # return move index
+            # Can probably avoid calc pieces here by getting return move 
+            # to return move index
             pieces = np.sum(board_tensor[:,:,:2],-1).reshape((7,7))
             moves.append(bot.encoder.encode_move(pieces, action.move))
             
@@ -39,17 +45,23 @@ def simulate_game(bot, starting_board=None):
             
         # Make the move.
         game.take_turn_with_no_checks(action)
+        if max_moves > 0:
+            num_moves += 1
+        
+    if num_moves >= max_moves:
+        print("Game ended in a draw.")
                 
     return boards, moves, prior_targets, players, game.winner
 
 
 def gain_experience(bot, num_episodes, max_num_white_pieces = None, 
-                                       max_num_black_pieces = None):
+                                       max_num_black_pieces = None,
+                                       moves_limit = None):
     
     experience = []
     
     for i in range(num_episodes):
-        print('\rPlaying game {0}'.format(i),end='')
+        print('\rPlaying game {0}. '.format(i),end='')
         episode = {'boards': [],
                   'moves': [],
                   'prior_targets': [],
@@ -61,11 +73,14 @@ def gain_experience(bot, num_episodes, max_num_white_pieces = None,
         else:
             num_white_pieces = random.randint(0, max_num_white_pieces)
             num_black_pieces = random.randint(1, max_num_black_pieces)
+            message = "The game began with {0} white pieces and {1} black. "
+            print(message.format(num_white_pieces, num_black_pieces),end='')
             board = random_starting_position(num_white_pieces,
                                              num_black_pieces)
             
         boards, moves, prior_targets, players, winner = simulate_game(bot, 
-                                                                      board)
+                                                                      board,
+                                                                      moves_limit)
         
         episode['boards'] = boards
         episode['moves'] = moves
@@ -94,8 +109,9 @@ def create_training_data(bot, experience):
         policy_targets = visit_counts / total_visits
         
         episode_rewards = episode['winner'] * np.array(episode['players'])
-        episode_rewards = 1.1*np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
-                                 ) * episode_rewards - 0.1
+        episode_rewards = (np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
+                                 )) * episode_rewards
+        
         rewards.append( episode_rewards )
         
         Y.append( policy_targets )

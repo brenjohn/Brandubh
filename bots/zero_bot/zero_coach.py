@@ -161,7 +161,7 @@ bot.evaluate_against_rand_bot(num_games, num_white_pieces, num_black_pieces)
 
 
 # %% Evaluate the bot
-num_games = 100
+num_games = 400
 bot.evaluate_against_old_bot(num_games)
 bot.evaluate_against_rand_bot(num_games)
 
@@ -189,22 +189,24 @@ bot = copy.deepcopy(zero_bot_base)
 import numpy as np
 
 num_episodes = 1
-num_cycles = 1
+num_cycles = 200
 
-max_num_black_pieces = 2
-max_num_white_pieces = 2
+max_num_black_pieces = 8
+max_num_white_pieces = 4
+moves_limit = 500
 
 for cycle in range(num_cycles):
     
     print('\nGainning experience, cycle {0}'.format(cycle))
-    experience = gain_experience(bot, num_episodes, 
-                                 max_num_white_pieces, max_num_black_pieces)
+    experience = gain_experience(bot, num_episodes,
+                                 max_num_white_pieces, max_num_black_pieces,
+                                 moves_limit)
     
     print('Preparing training data')
     X, Y, rewards = create_training_data(bot, experience)
     
     print('\nTraining network, cycle {0}'.format(cycle))
-    losses = bot.model.fit(X, [Y, rewards], batch_size=512, epochs=1)
+    losses = bot.model.fit(X, [Y, rewards], batch_size=256, epochs=1)
     bot.save_losses(losses)
     
     
@@ -215,8 +217,16 @@ import matplotlib.pyplot as plt
 score_old = [evaluation[0] for evaluation in bot.evaluation_history_old]
 score_ran = [evaluation[0] for evaluation in bot.evaluation_history_ran]
 
-plt.plot(score_old, label="old")
-plt.plot(score_ran, label="random")
+old_err = [((1-evaluation[0]**2)/evaluation[3])**0.5 
+           for evaluation in bot.evaluation_history_old]
+
+ran_err = [((1-evaluation[0]**2)/evaluation[3])**0.5 
+           for evaluation in bot.evaluation_history_ran]
+
+plt.errorbar(range(len(bot.evaluation_history_old)), score_old, old_err, 
+             label="old")
+plt.errorbar(range(len(bot.evaluation_history_ran)), score_ran, ran_err,
+             label="random")
 plt.legend()
 
 
