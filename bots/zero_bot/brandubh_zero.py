@@ -113,12 +113,20 @@ class ZeroBot:
             # then don't create a new node and assign a value to the node
             # based on who won.
             if node.state.is_not_over():
-                new_state = copy.deepcopy(node.state)
-                new_state.take_turn_with_no_checks(Act.play(next_move))
-                child_node = self.create_node(new_state, 
-                                              move=next_move, parent=node)
-                move = next_move
-                value = -1 * child_node.value 
+                if next_move:
+                    new_state = copy.deepcopy(node.state)
+                    new_state.take_turn_with_no_checks(Act.play(next_move))
+                    child_node = self.create_node(new_state, 
+                                                  move=next_move, parent=node)
+                    move = next_move
+                    value = -1 * child_node.value 
+                else:
+                    new_state = copy.deepcopy(node.state)
+                    new_state.take_turn_with_no_checks(Act.pass_turn())
+                    child_node = self.create_node(new_state, 
+                                                  move=next_move, parent=node)
+                    move = next_move
+                    value = -1 * child_node.value
             else:
                 # If the game in the current state is over, then the last
                 # player must have won the game. Thus the value/reward for the
@@ -398,5 +406,7 @@ class TreeNode:
     
     def record_visit(self, move, value):
         self.total_visit_count += 1
-        self.branches[move].visit_count += 1
-        self.branches[move].total_value += value
+        # If the move isn't a pass
+        if move:
+            self.branches[move].visit_count += 1
+            self.branches[move].total_value += value

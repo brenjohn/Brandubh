@@ -191,7 +191,7 @@ import numpy as np
 num_episodes = 1
 num_cycles = 200
 
-max_num_black_pieces = 8
+max_num_black_pieces = 0
 max_num_white_pieces = 4
 moves_limit = 500
 

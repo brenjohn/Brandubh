@@ -34,3 +34,5 @@ Replace transpose_policy and flip policy in FourPlaneEncoder with a transform_po
 Get evaluation functions to print out current score while evaluating.
 
 Update branch_score function so that it isn't nested inside the select_branch function.
+
+Build a visualisation tool to view the construction of the tree structure. Would be useful for verifying algorithm behaviour.
