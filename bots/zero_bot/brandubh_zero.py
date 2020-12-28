@@ -46,27 +46,22 @@ class ZeroBot:
         loss_history           - A list holding the values of the loss 
                                  functions (total loss, soft max - policy head,
                                  mse - value head) during training.
-                                 
-        encoder    - An encoder object to convert board positions into neural
-                     network input and network output to a distribution over
-                     moves.
                      
         rand_bot   - A bot that makes random moves. Used for evaluating bot
                      performance after training.
     """
     
-    def __init__(self, num_rounds=10, model=None):
+    def __init__(self, num_rounds=10, network=None):
         self.num_rounds = num_rounds
         self.c = 2.0
         self.alpha = 0.03
         self.evaluation_history_old = []
         self.evaluation_history_ran = []
         self.loss_history = []
-        self.encoder = FourPlaneEncoder()
         self.rand_bot = RandomBot()
         
-        if model:
-            self.model = model
+        if network:
+            self.network = network
     
     def select_move(self, game_state, return_visit_counts=False):
         """
@@ -96,7 +91,7 @@ class ZeroBot:
         # if the player has no pieces left or if the game is over. 
         if not root.branches:
             if return_visit_counts:
-                return Act.pass_turn(), np.zeros(96)
+                return Act.pass_turn(), {}
             return Act.pass_turn()
         
         for i in range(self.num_rounds):
@@ -148,10 +143,9 @@ class ZeroBot:
         # Get the visit counts of the branches if they were requested.
         # TODO: Clean this up
         if return_visit_counts:
-            ordered_moves = [self.encoder.decode_move_index(game_state, index)
-                             for index in range(96)]
-            visit_counts = [root.visit_count(move) 
-                            for move in ordered_moves]
+            visit_counts = {}
+            for move in root.branches.keys():
+                visit_counts[move] = root.branches[move].visit_count
                 
         # Get a list of possible moves sorted according to visit count,
         # the move with the highest visit count should be first in the list.
@@ -181,21 +175,14 @@ class ZeroBot:
         # Pass the game state to the neural network to both evaluate the 
         # how good the board position is and get the prior probability
         # distribution over possible next moves.
-        state_tensor = self.encoder.encode(game_state)
-        model_input = state_tensor.reshape(1,7,7,4)
-        priors, value = self.model.predict(model_input)
-        priors, value = priors[0], value[0][0]
+        move_priors, value = self.network.predict(game_state)
         
         # If a root node is being created, then add some dirichlet noise
         # to the prior probabilities to help exploration.
         if parent == None:
             dirichlet_noise = np.random.dirichlet([self.alpha]*96)
-            priors = (priors + dirichlet_noise)/2
-        
-        # Put the prior probabilities into a dictionary with tuples 
-        # representing the aoosciated moves.
-        move_priors = {self.encoder.decode_move_index(game_state, idx): prior
-                       for idx, prior in enumerate(priors)}
+            for (i, move) in enumerate(move_priors.keys()):
+                move_priors[move] = (move_priors[move] + dirichlet_noise[i])/2
         
         # Create the node for the given game state, with the predicted value
         # and priors, and attach it to the tree.
@@ -319,19 +306,19 @@ class ZeroBot:
         self.loss_history.append(losses)
     
     def save_bot(self, prefix="model_data/"):
-        self.model.save(prefix + 'zero_model.h5')
+        network_load_command = self.network.save_network(prefix)
         
         attributes = {"num_rounds" : self.num_rounds,
                       "c" : self.c,
                       "alpha" : self.alpha,
                       "loss_history" : self.loss_history,
                       "evaluation_history_old" : self.evaluation_history_old,
-                      "evaluation_history_ran" : self.evaluation_history_ran}
+                      "evaluation_history_ran" : self.evaluation_history_ran,
+                      "network_load_command": network_load_command}
         
         np.save(prefix + "model_attributes.npy", attributes)
         
     def load_bot(self, prefix="model_data/"):
-        self.model = load_model(prefix + 'zero_model.h5')
         attributes = np.load(prefix + "model_attributes.npy",
                              allow_pickle='TRUE').item()
         
@@ -342,6 +329,10 @@ class ZeroBot:
             self.loss_history = attributes["loss_history"]
         self.evaluation_history_old = attributes["evaluation_history_old"]
         self.evaluation_history_ran = attributes["evaluation_history_ran"]
+        
+        network_load_command = attributes["network_load_command"]
+        exec(network_load_command)
+        self.network.load_network(prefix)
         
     def save_as_old_bot(self, prefix="model_data/old_bot/"):
         self.save_bot(prefix)

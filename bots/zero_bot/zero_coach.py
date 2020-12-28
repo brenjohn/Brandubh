@@ -99,7 +99,7 @@ model.summary()
 bot = ZeroBot(100, model)
 
 
-# %% Create a neural network for a ZeroBot
+# %% Create a neural network for a ZeroBot (bot2020)
 
 board_input = Input(shape=(7,7,4), name='board_input')
 
@@ -131,6 +131,57 @@ bot = ZeroBot(36, model)
 
 
 
+# %% Create a neural network for a ZeroBot
+
+board_input = Input(shape=(7,7,4), name='board_input')
+
+processed_board = Conv2D(64, (3, 3), 
+                         padding='same',
+                         activation='relu')(board_input)
+for i in range(7):
+    skip = processed_board
+    processed_board = Conv2D(64, (3, 3), 
+                             padding='same',
+                             activation='relu')(processed_board)
+    processed_board = add([processed_board, skip])
+
+skip = processed_board
+policy_conv = Conv2D(64, (3, 3), 
+                         padding='same',
+                         activation='relu')(processed_board)
+policy_board = add([policy_conv, skip])
+policy_output = Conv2D(12, (3, 3), padding='same', 
+                       activation='relu')(policy_board)
+
+value_conv = Conv2D(1, (1, 1), activation='relu')(processed_board)
+value_flat = Flatten()(value_conv)
+value_hidden = Dense(128, activation='relu')(value_flat)
+value_output = Dense(1, activation='tanh')(value_hidden)
+
+model = Model(inputs=board_input, 
+              outputs=[policy_output, value_output])
+model.summary()
+
+bot = ZeroBot(500, model)
+
+
+
+# %% .
+from my_first_zerobot_network import FirstZeroNet
+
+net = FirstZeroNet()
+bot = ZeroBot(10, net)
+
+
+
+# %% .
+from zero_network import ZeroNet
+
+net = ZeroNet()
+bot = ZeroBot(500, net)
+
+
+
 # %% Save the current bot as the old bot to evaluate future versions against.
 bot.save_as_old_bot()
 
@@ -147,7 +198,7 @@ bot.model.compile(optimizer=keras.optimizers.SGD(lr=0.0000001,
 
 
 # %%
-bot.model.compile(optimizer=keras.optimizers.Adam(lr=0.000002),
+bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
                   loss=['categorical_crossentropy', 'mse'],
                   loss_weights=[1.0, 1.0])
 
@@ -161,7 +212,7 @@ bot.evaluate_against_rand_bot(num_games, num_white_pieces, num_black_pieces)
 
 
 # %% Evaluate the bot
-num_games = 400
+num_games = 100
 bot.evaluate_against_old_bot(num_games)
 bot.evaluate_against_rand_bot(num_games)
 
@@ -188,25 +239,27 @@ bot = copy.deepcopy(zero_bot_base)
 # %% train the bot
 import numpy as np
 
-num_episodes = 1
-num_cycles = 200
+num_episodes = 50
+num_cycles = 2000
 
-max_num_black_pieces = 0
 max_num_white_pieces = 4
+max_num_black_pieces = 8
 moves_limit = 500
 
 for cycle in range(num_cycles):
     
     print('\nGainning experience, cycle {0}'.format(cycle))
     experience = gain_experience(bot, num_episodes,
-                                 max_num_white_pieces, max_num_black_pieces,
+                                 max_num_white_pieces, 
+                                 max_num_black_pieces,
                                  moves_limit)
     
     print('Preparing training data')
     X, Y, rewards = create_training_data(bot, experience)
     
     print('\nTraining network, cycle {0}'.format(cycle))
-    losses = bot.model.fit(X, [Y, rewards], batch_size=256, epochs=1)
+    print('Training model on {0} moves'.format(len(X)))
+    losses = bot.network.model.fit(X, [Y, rewards], batch_size=128, epochs=1)
     bot.save_losses(losses)
     
     
@@ -245,63 +298,3 @@ bot.save_bot()
 
 # %%
 bot.load_bot()
-
-# %%
-import multiprocessing as mp
-import numpy as np
-import copy
-
-def generate_training_data(q, bot, num_episodes):
-    np.random.seed()
-    print('\nGainning experience, cycle {0}'.format(1))
-    experience = gain_experience(bot, num_episodes)
-    
-    print('Preparing training data')
-    X, Y, rewards = create_training_data(bot, experience)
-    
-    q.put((X, Y, rewards))
-    
-num_episodes = 1
-processes = []
-q = mp.Queue()
-
-bots = [bot, ZeroBot(10, copy.copy(bot.model))]
-
-for i in range(2):
-    p = mp.Process(target=generate_training_data, args=(q, bots[i], num_episodes))
-    processes.append(p)
-    p.start()
-    
-for process in processes:
-    process.join()
-    
-X, Y, rewards = q.get()
-for _ in range(1):
-    Xi, Yi, ri = q.get()
-    X = np.concatenate((X, Xi), axis=0)
-    Y = np.concatenate((Y, Yi), axis=0)
-    rewards = np.concatenate((rewards, ri), axis=0)
-    
-print('\nTraining network, cycle {0}'.format(cycle))
-bot.model.fit(X, [Y, rewards], batch_size=128, epochs=1)
-
-# %%
-num_games = 100; num_white_pieces = 0; num_black_pieces = 7
-bot.evaluate_against_old_bot(num_games, num_white_pieces, num_black_pieces)
-bot.evaluate_against_rand_bot(num_games, num_white_pieces, num_black_pieces)
-
-num_episodes = 10
-num_cycles = 10
-num_white_pieces = 0; num_black_pieces = 8
-
-for cycle in range(num_cycles):
-    print('\nGainning experience, cycle {0}'.format(cycle))
-    experience = gain_experience(bot, num_episodes, 
-                                 num_white_pieces, num_black_pieces)
-    
-    print('Preparing training data')
-    X, Y, rewards = create_training_data(bot, experience)
-    
-    print('\nTraining network, cycle {0}'.format(cycle))
-    losses = bot.model.fit(X, [Y, rewards], batch_size=128, epochs=1)
-    bot.save_losses(losses)

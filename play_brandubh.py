@@ -68,6 +68,7 @@ def start_a_new_game(white, black):
     utils.print_board(game, next_move)
     winner = 'black' if game.winner==-1 else 'white'
     print('The winner is ' + winner)
+    time.sleep(0.2)
     input('--')
 
 
@@ -88,6 +89,7 @@ def main():
         print('rules - See the rules of the game')
         print('about - Some history behind brandubh')
         print('exit  - quit the game')
+        time.sleep(0.2)
         option = input('-- ')
         
         if option == 'exit':
@@ -96,11 +98,13 @@ def main():
         elif option == 'rules':
             print(chr(27) + "[2J")
             print('Put game rules here')
+            time.sleep(0.2)
             input('--')
             
         elif option == 'about':
             print(chr(27) + "[2J")
             print('Put game history here')
+            time.sleep(0.2)
             input('--')
             
         elif option == 'play':
@@ -127,6 +131,7 @@ def main():
         else:
             print(chr(27) + "[2J")
             print('Invalid option')
+            time.sleep(0.2)
             input('--')
             
     print(chr(27) + "[2J")

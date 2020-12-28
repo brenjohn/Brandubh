@@ -31,13 +31,12 @@ def simulate_game(bot, starting_board=None, max_moves=0):
                                                return_visit_counts=True)
         
         if action.is_play:
-            board_tensor = bot.encoder.encode(game)
+            board_tensor = bot.network.encoder.encode(game)
             boards.append(board_tensor)
         
             # Can probably avoid calc pieces here by getting return move 
             # to return move index
-            pieces = np.sum(board_tensor[:,:,:2],-1).reshape((7,7))
-            moves.append(bot.encoder.encode_move(pieces, action.move))
+            moves.append(action.move)
             
             prior_targets.append(visit_counts)
             
@@ -78,9 +77,8 @@ def gain_experience(bot, num_episodes, max_num_white_pieces = None,
             board = random_starting_position(num_white_pieces,
                                              num_black_pieces)
             
-        boards, moves, prior_targets, players, winner = simulate_game(bot, 
-                                                                      board,
-                                                                      moves_limit)
+        game_details = simulate_game(bot, board, moves_limit)
+        boards, moves, prior_targets, players, winner = game_details
         
         episode['boards'] = boards
         episode['moves'] = moves
@@ -105,8 +103,7 @@ def create_training_data(bot, experience):
         X.append(Xi)
         
         visit_counts = episode['prior_targets']
-        total_visits = np.sum(visit_counts, axis=1).reshape(num_moves, 1)
-        policy_targets = visit_counts / total_visits
+        policy_targets = bot.network.encoder.encode_priors(visit_counts)
         
         episode_rewards = episode['winner'] * np.array(episode['players'])
         episode_rewards = (np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
@@ -119,7 +116,7 @@ def create_training_data(bot, experience):
     X = np.concatenate(X)
     Y = np.concatenate(Y)
     
-    X, Y = bot.encoder.expand_data(X, Y)
+    X, Y = bot.network.encoder.expand_data(X, Y)
     rewards = np.concatenate(8*rewards)
         
     return X, Y, rewards
