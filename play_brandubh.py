@@ -97,7 +97,7 @@ def main():
         
         elif option == 'rules':
             print(chr(27) + "[2J")
-            print('Put game rules here')
+            print(utils.RULEBOOK)
             time.sleep(0.2)
             input('--')
             

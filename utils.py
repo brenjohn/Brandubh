@@ -27,6 +27,63 @@ title = """
 (____/'(_)  `\__,_)(_) (_)`\__,_)`\___/'(_,__/'(_) (_) 
 """
 
+RULEBOOK = """
+Brandubh (Black Raven in Irish) is a small Tafl game known to have been played 
+in Ireland at least a thousand years ago.
+
+It is a two player game, played on a 7 x 7 board with the corners and centre 
+square marked as special squares (marked as '=' on the board).
+
+The white player begins the game with four soldier pieces (marked as 'o') and
+a king (marked as 'A'). The black player starts with 8 soldier pieces (marked
+as 'x'). The game begins with the pieces arranged as follows:
+    
+                           A B C D E F G
+                         +---------------+
+                        0| = . . x . . = |0
+                        1| . . . x . . . |1
+                        2| . . . o . . . |2
+                        3| x x o A o x x |3
+                        4| . . . o . . . |4
+                        5| . . . x . . . |5
+                        6| = . . x . . = |6
+                         +---------------+ 
+                           A B C D E F G
+
+The aim of the game for the white player is to move their king to one of the
+special corner squares. For the black player, the goal is to capture the king.
+
+All the pieces move the same way: in straight lines forward, backwards, left 
+or right, any number of squares without jumping over other pieces.
+
+You can capture an enemy piece by surrounding it on both sides with two of 
+your own pieces. They must be standing on opposite sides, either in front and 
+behind, or to the left and right, not diagonally. A piece that becomes trapped 
+like this by an enemy move is captured and removed from the board. However, it
+is safe to move into a gap between two enemies without being captured. The 
+King may participate in capturing, just like any other piece, and may also be 
+captured just like any other piece. It is possible to capture more than one 
+piece at a time, but not if they are standing together in a row.
+
+The central square (known as the throne square) and the four corner squares 
+are restricted. Only the king may occupy any of these five squares, though any 
+soldier may pass through the throne square when it is empty, without stopping 
+on it. The king may return to the throne square after it has left it, if 
+required. The king can be captured while on the throne, just the same as on 
+any other square, by being surrounded on two opposite sides.
+
+In addition, the four corner squares (but not the throne square) are hostile 
+squares. This means that they can play the part of an enemy soldier of either 
+colour for the purposes of capturing. Any piece, including the king, that is 
+occupying a square next to the corner square, can be captured if an enemy 
+piece moves in behind it, trapping it against the hostile corner square.
+
+The game may end in a draw if: (1) either player is unable to move on their 
+turn, because all remaining pieces are blocked in and unable to move, (2) a 
+perpetually repeating series of moves means the game has reached stalemate by 
+repetition, (3) both players agree to a draw at any time.
+"""
+
 
 def print_board(game, move):
     """

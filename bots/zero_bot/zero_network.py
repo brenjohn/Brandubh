@@ -217,6 +217,5 @@ class SixPlaneEncoder():
     
     def flip_policy(self, Y):
         Y = np.flip(Y, axis=1)
-        Y[:,:,:,12:] = np.concatenate([Y[:, :, :, 18:], Y[:, :, :, 12:18]], 
-                                      axis=3)
+        Y[:,:,:,12:] = Y[:,:,:,24:11:-1]
         return Y
