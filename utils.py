@@ -18,7 +18,7 @@ PIECE_TO_CHAR = {
     -1.: 'x',
     2. : 'A'}
 
-title = """
+TITLE = """
  ___                           _         _      _      
 (  _`\                        ( )       ( )    ( )     
 | (_) ) _ __   _ _   ___     _| | _   _ | |_   | |__   
@@ -36,7 +36,8 @@ square marked as special squares (marked as '=' on the board).
 
 The white player begins the game with four soldier pieces (marked as 'o') and
 a king (marked as 'A'). The black player starts with 8 soldier pieces (marked
-as 'x'). The game begins with the pieces arranged as follows:
+as 'x') and always gets the first move. The game begins with the pieces 
+arranged as follows:
     
                            A B C D E F G
                          +---------------+
@@ -82,6 +83,34 @@ The game may end in a draw if: (1) either player is unable to move on their
 turn, because all remaining pieces are blocked in and unable to move, (2) a 
 perpetually repeating series of moves means the game has reached stalemate by 
 repetition, (3) both players agree to a draw at any time.
+
+To play a game, enter the command 'play' at the main menu. Then select a 
+player for the black and white sides by entering one of the following options
+for each:
+    
+    * user - The user will be asked to select moves for the corresponding side.
+    * rand - A bot which randomly selects moves with a uniform distribution 
+             will select moves for the corresponding side.
+    * zero - A bot which uses the AlphaZero algorithm will be used to select
+             moves for the corresponding side. The algorithm will use a neural
+             network saved in the directory ./bot/zero_bot/model/data to make
+             predictions if one exists. If not, an untrained network with
+             random weights will be created instead.
+
+During a game, the user will be repeatedly asked to select moves. To select a 
+move you need to enter two pairs of coordinates: one to select a square 
+containing a piece you want to move and another to select a square you want to 
+move it to. 
+
+Coordinates of a square are expected to be in the form of a letter-number 
+pair. The letter (ranging from A to G) indicates the column a square is in and
+the number (ranging from 0 to 6) indicates the row. Example: To move the black
+soldier at the top of the board, depicted above, two squares to the right, the
+user should enter - D0 F0
+
+If you are unable to make a move you can pass your turn by entering the command
+'pass'. Entering the command 'resign' at any point should end the game, making
+the opponent the winner.
 """
 
 

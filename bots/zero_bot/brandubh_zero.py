@@ -4,25 +4,28 @@
 Created on Sun Jun 14 13:49:08 2020
 
 @author: john
+
+This file contains classes used to create a bot that can play brandubh using
+the AlphaGo-Zero approach.
 """
 
 import numpy as np
 import copy
 
-from bots.four_plane_encoder import FourPlaneEncoder
 from brandubh import Act, GameState
 from bots.random_bot import RandomBot
 from bots.zero_bot.zero_training_utils import random_starting_position
-from keras.models import load_model
 
 
 
 class ZeroBot:
     """
-    The ZeroBot uses the policy used by alphaGoZero to select moves. Namely,
-    if uses a type of Monte Carlo tree search which has been integrated with
+    The ZeroBot uses the policy used by AlphaGoZero to select moves. Namely,
+    it uses a type of Monte Carlo tree search which has been integrated with
     a neural network that evaulates board positions and predicts which
-    branches of the search tree will be visted most often.
+    branches of the search tree will be visted most often. The move it selects
+    is the move corresponding to the most visited branch during this tree 
+    search.
     
     Attributes:
         num_rounds - The number of nodes that will be added to the tree 
@@ -68,7 +71,7 @@ class ZeroBot:
         Select a move to make from the given board position (game_state).
         
         The algorithm uses a combination of a neural network and a Monte Carlo
-        tree search to search the game tree stemming from the given board
+        tree search to search the decision tree stemming from the given board
         position. It returns the move associated with the most visited branch 
         stemming from the root.
         
@@ -116,6 +119,9 @@ class ZeroBot:
                     move = next_move
                     value = -1 * child_node.value 
                 else:
+                    # If the current player can't make any moves from the
+                    # selected gamestate then next_move will be 'None' meaning
+                    # the player passes the turn.
                     new_state = copy.deepcopy(node.state)
                     new_state.take_turn_with_no_checks(Act.pass_turn())
                     child_node = self.create_node(new_state, 
@@ -141,7 +147,6 @@ class ZeroBot:
                 value *= -1
             
         # Get the visit counts of the branches if they were requested.
-        # TODO: Clean this up
         if return_visit_counts:
             visit_counts = {}
             for move in root.branches.keys():
@@ -173,8 +178,9 @@ class ZeroBot:
         structure when other nodes are added to it.
         """
         # Pass the game state to the neural network to both evaluate the 
-        # how good the board position is and get the prior probability
-        # distribution over possible next moves.
+        # how good the board position is and get the prior probability 
+        # distribution over possible next moves (ie the predicted distribution 
+        # of visit counts).
         move_priors, value = self.network.predict(game_state)
         
         # If a root node is being created, then add some dirichlet noise
@@ -219,24 +225,35 @@ class ZeroBot:
         else:
             # If moves is empty then no legal moves can be made from the game
             # state corresponding to the given node.
-            # TODO: The select_move algorithm should interperet this as a pass
-            # but currently doesn't which may lead in undefined behaviour
-            # in special rare game states where the game is not over but a
-            # player cannot legally make a move.
             return None
     
     def evaluate_against_bot(self, opponent_bot, num_games, 
                              num_white_pieces = None, 
-                             num_black_pieces = None):
+                             num_black_pieces = None,
+                             max_num_of_turns = 1000):
+        """
+        This method evaluates the current bot against a given opponent bot
+        by letting them play a number of games against each other. The number
+        of games played is specified by 'num_games'. A random starting 
+        position for the games is generated if a maximum number of white and
+        black pieces is given by the parameters 'num_white_pieces' and
+        'num_black_pieces', otherwise the regular starting position is used.
+        
+        If the number of turns taken in a game exceeds the given maximum, then
+        the game ends and drawn up as a win for the opponent bot.
+        """
         zero_bot_player = 1
         score = 0
         num_games_won_as_black = 0
         num_games_won_as_white = 0
         
+        # Play 'num_games' games of brandubh
         for i in range(num_games):
-            print('\rPlaying game {0}, score: w = {1}, b = {2}'.format(i, 
+            print('\rPlaying game {0}, score: w = {1}, b = {2}.'.format(i, 
                     num_games_won_as_white, num_games_won_as_black),end='')
             
+            # If a maximum number of white or black pieces is given, then
+            # use a random starting position for the game.
             if num_white_pieces or num_black_pieces:
                 starting_board = random_starting_position(num_white_pieces, 
                                                           num_black_pieces)
@@ -244,36 +261,35 @@ class ZeroBot:
             else:
                 game = GameState.new_game()
             
-            max_num_of_turns = 1000
+            # Get both bots to play a game of brandubh.
             turns_taken = 0
-            
             while game.is_not_over() and turns_taken < max_num_of_turns:
                 if game.player == zero_bot_player:
                     action = self.select_move(game)
                 else:
-                    action = opponent_bot.select_move(game)
-                    
+                    action = opponent_bot.select_move(game)  
                 game.take_turn_with_no_checks(action)
                 turns_taken += 1
              
                 
+            # At the end of the game, increment counts keeping track of how
+            # many games the current bot won against the opponent bot and 
+            # get the bots to switch sides for the next game.
             if turns_taken < max_num_of_turns:
                 score += zero_bot_player*game.winner
-            
                 if zero_bot_player == game.winner:
                     if zero_bot_player == 1:
                         num_games_won_as_white += 1
                     else:
-                        num_games_won_as_black += 1
-                        
+                        num_games_won_as_black += 1     
                 zero_bot_player *= -1
                         
             else:
                 score -= 1
                 zero_bot_player *= -1
                 
-        print(' done')
-        # Save the evaluation score of the bot along with fraction of games
+        print(' done.')
+        # Return the evaluation score of the bot along with fraction of games
         # won as black/white, the total number of games and the number of
         # epochs the bot has trained for before being evaluated.
         return [score/num_games, 2*num_games_won_as_white/num_games,
@@ -283,6 +299,10 @@ class ZeroBot:
     def evaluate_against_rand_bot(self, num_games, 
                                   num_white_pieces = None, 
                                   num_black_pieces = None):
+        """
+        Function to evaluate how good the current bot is against a bot who
+        makes random moves.
+        """
         print('Evaluating against random bot')
         results = self.evaluate_against_bot(self.rand_bot, num_games,
                                             num_white_pieces, 
@@ -293,6 +313,11 @@ class ZeroBot:
                                  num_white_pieces = None, 
                                  num_black_pieces = None,
                                  prefix="model_data/old_bot/"):
+        """
+        Function to evaluate how good the current bot is against an older 
+        version of the current bot whoes weights are save under the directory
+        given by the parameter 'prefix'. 
+        """
         print('Evaluating against old bot')
         old_bot = ZeroBot(1)
         old_bot.load_old_bot(prefix)
@@ -302,10 +327,19 @@ class ZeroBot:
         self.evaluation_history_old.append(results)
         
     def save_losses(self, loss_history):
+        """
+        Method to save the evaulations of the loss function of the neural
+        network on training data.
+        """
         losses = [loss[0] for loss in loss_history.history.values()]
         self.loss_history.append(losses)
     
     def save_bot(self, prefix="model_data/"):
+        """
+        Method to save the attributes of the current bot and the weights of
+        its neural network under the directory given by the parameter 
+        'prefix'
+        """
         network_load_command = self.network.save_network(prefix)
         
         attributes = {"num_rounds" : self.num_rounds,
@@ -319,6 +353,10 @@ class ZeroBot:
         np.save(prefix + "model_attributes.npy", attributes)
         
     def load_bot(self, prefix="model_data/"):
+        """
+        Method to load the attributes and neural network saved under the given
+        directory.
+        """
         attributes = np.load(prefix + "model_attributes.npy",
                              allow_pickle='TRUE').item()
         
@@ -335,24 +373,58 @@ class ZeroBot:
         self.network.load_network(prefix)
         
     def save_as_old_bot(self, prefix="model_data/old_bot/"):
+        """
+        Method to save the current bot as the 'old_bot' used in bot evaluation.
+        """
         self.save_bot(prefix)
         
     def load_old_bot(self, prefix="model_data/old_bot/"):
+        """
+        Method to load the old_bot for evaluating the current bot.
+        """
         self.load_bot(prefix)
 
 
 
 class Branch:
+    """
+    Instances of this class are used to store statistics gathered, by the
+    ZeroBot select_move algorithm, on how often a branch of the decision tree
+    stemming from a particular gamestae was visited and the estimated value
+    of the resulting board position. It also saves the prior probability of
+    the move associated with an instance of Branch as predicted by the neural
+    network.
+    """
     def __init__(self, prior):
         self.prior = prior
         self.visit_count = 0
         self.total_value = 0 # when divided by visit count should give the
-                             # average value of the move corresponding to this
+                             # average value of the board corresponding to this
                              # branch
 
         
         
 class TreeNode:
+    """
+    This class can represent a node (corresponding to a game state) in the 
+    decision tree stemming from a game state of brandubh.
+    
+    Instances of this class are used to build a tree structure to record the
+    search history of the ZeroBot select_move algorithm. It saves an instance
+    of the game state it represents, the expected value of that game state as
+    predicted by the neural network, a reference to its parent node if it has
+    one and a tuple representing the previous move of the game corresponding 
+    game state which created it.
+    
+    It also contains two dictionaries, indexed by game moves, which hold 
+    references to any child nodes attached to the current instance in the tree
+    structure and branch objects containing statistics regarding the search 
+    history of the select_move method.
+    
+    TODO: It may be cleaner to combine the TreeNode and Branch classes into
+    one. Only a single dictionary would be required then. Should think about
+    if or how this would affect performance of the select_move method.
+    """
     def __init__(self, game_state, value, priors, parent, last_move):
         self.state = game_state
         self.value = value
@@ -360,7 +432,7 @@ class TreeNode:
         self.last_move = last_move
         
         # Used when branch stemming from this node is being selected.
-        self.total_visit_count = 0 # ?? sum branch visits?
+        self.total_visit_count = 0
         
         self.branches = {}
         for move, prior in priors.items():

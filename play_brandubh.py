@@ -4,6 +4,9 @@
 Created on Sun Jun 28 17:11:37 2020
 
 @author: john
+
+Running this script provides the user with a terminal interface for setting
+up and playing a game of brandubh. 
 """
 
 import time
@@ -16,10 +19,16 @@ from bots.zero_bot.brandubh_zero import ZeroBot
 
 
 def create_a_zero_bot():
+    """
+    A function for creating/loading a ZeroBot to act as a player in a game of
+    brandubh.
+    """
     bot = ZeroBot()
     bot.load_bot("bots/zero_bot/model_data/")
     return bot
 
+# A dictionary used to map input from the user to constructors for different
+# agents that may play in a game.
 PLAYERS = {"user": utils.Player,
            "rand": RandomBot,
            "zero": create_a_zero_bot}
@@ -29,26 +38,29 @@ PLAYERS = {"user": utils.Player,
 def start_a_new_game(white, black):
     """
     This function creates a new game of brandubh and asks the players
-    to select moves until the game is over.
+    to select moves until the game is over. The arguments 'white' and 'black'
+    should be agents that implement a select_move method which returns a move
+    to be made next, given an arbitrary game-state/board-position.
     """
-    
     game = GameState.new_game()
     next_move = ' '
     
     while game.is_not_over():
-        
         # Clear the output screen and print the current board position
         print(chr(27) + "[2J")
         utils.print_board(game, next_move)
         time.sleep(0.5)
             
+        # Ask the proper agent what the next move should be.
         if game.player == 1:
             action = white.select_move(game)
             move = action.move
         else:
             action = black.select_move(game)
             move = action.move
-            
+         
+        # Create a string indicating what the selected move was to be 
+        # displayed on screen for the next turn.
         if move:
             next_move = utils.COLS[move[1]] + str(move[0]) + ' ' + \
                         utils.COLS[move[3]] + str(move[2])
@@ -75,12 +87,14 @@ def start_a_new_game(white, black):
 
 def main():
     """
-    This function provides a user interface for brandubh.
+    This function provides the user with an interface for creating and
+    interacting with a game of brandubh.
     """
     
     while True:
+        # Print the main menu and wait for input from the user.
         print(chr(27) + "[2J")
-        print(utils.title)
+        print(utils.TITLE)
         print('F\u00e1ilte go bradubh / Welcome to brandubh')
         print('.......................................')
         print(' ')
@@ -92,6 +106,7 @@ def main():
         time.sleep(0.2)
         option = input('-- ')
         
+        # Run the appropriate commands for the option selected by the user.
         if option == 'exit':
             break
         
@@ -110,7 +125,8 @@ def main():
         elif option == 'play':
             print(chr(27) + "[2J")
             
-            # Ask the user what pieces they want to use
+            # Ask the user which agents should play for the black and white 
+            # sides.
             black_player = ''
             while black_player not in PLAYERS:
                 time.sleep(0.2)

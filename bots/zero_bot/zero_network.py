@@ -4,6 +4,21 @@
 Created on Sat Dec 19 23:16:53 2020
 
 @author: john
+
+This file defines two classes which define a neural network and implements the
+interface a ZeroBot needs to interact with the neural network in order to 
+predict the value of board positions, predict valuable moves that can be made
+from a board position and to prepare training data to train and improve the
+network.
+
+The ZeroNet class has a keras neural network for predicting the value of a
+board-position/game-state and the distribution of visits a ZeroBot will make
+to branches of the decision tree stemming from the board-position.
+
+The SixPlaneEncoder class is used to convert a game-state to an input tensor
+for the neural network and to convert the output of the network to a 
+dictionary of move-value pairs. It also has methods for expanding training 
+data for the network.
 """
 
 import sys
@@ -20,10 +35,38 @@ from keras.models import load_model
 
 
 class ZeroNet():
+    """
+    This class has methods for building, saving and loading a nerual network
+    to be used by a Zerobot.
+    
+    The network architecture is as follows:
+        The input layer consists of 6 7x7 arrays of neurons (see encoder class)
+        
+        The input is then passed to a convolutional layer with 64 filters and
+        a 3x3 kernal
+        
+        This is followed by 7 residual layers which consist of two consecutive
+        convolutional layers with 64 filters each, produced by 3x3 kernals,
+        and a skip connection connecting the input of the first convolutional
+        layer to the output of the second. Leaky ReLu functions are used
+        as activations for each convolutional layer.
+        
+        The output of the last residual layer is then passed to two different
+        output heads - a value head and a policy head.
+        
+        The value head consists of a single convolution layer with 32 filters
+        connected to a dense hidden layer of 64 nodes followed by a single
+        output node. Leaky ReLus are used as activations for each layer expect 
+        the output node which uses a tanh as an activation.
+        
+        The policy head has two consecutive convolutional layers with 24 
+        filters. The first uses a leaky ReLu activation and the second uses a
+        softmax activation. The output of the policy head is a 7x7x24 tensor
+        (see Encoder class)
+    """
     
     def __init__(self):
         self.model = ZeroNet.build_model()
-        self.model.summary()
         self.encoder = SixPlaneEncoder()
         
     @classmethod

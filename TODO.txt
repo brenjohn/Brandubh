@@ -42,3 +42,5 @@ When choosing bots to play against, give user an option to choose which network 
 create/implement interface for zero networks
 
 Review the addition of dirichlet noise to move selection
+
+Add the Monte-Carlo bot to the agents that can be played against.
