@@ -4,6 +4,9 @@
 Created on Sat Jun 20 09:08:53 2020
 
 @author: john
+
+This file contains some useful functions, classes and constants for running
+a game of Brandubh.
 """
 
 import re
@@ -152,8 +155,15 @@ def print_board(game, move):
     
 
 class Player():
+    """
+    A class that can be used to allow the user to act as an agent in a game
+    of Brandubh.
+    """
     
     def select_move(self, game_state):
+        """
+        A method to repeatedly ask the user what move to make next.
+        """
         # Keep asking the user for input until valid input recieved
         move_is_illegal = 'True'
         while move_is_illegal:

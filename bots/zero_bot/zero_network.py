@@ -116,7 +116,9 @@ class ZeroNet():
     
     @classmethod
     def build_model(cls):
-        
+        """
+        This method builds the network model when a ZeroNet is initialised.
+        """
         board_input = Input(shape=(7,7,6), name='board_input')
         
         processed_board = ZeroNet.conv_layer(board_input, 64, (3, 3))
@@ -131,8 +133,13 @@ class ZeroNet():
         return model
     
     def predict(self, game_state):
-        # Should take gamestate as input and output a dictionary of
-        # move-prior pairs
+        """
+        This method uses the neural network to predict the value of a board 
+        position and the prior distribution over possible next moves.
+        """
+        # First encode the game state as a tensor which can be passed to the
+        # network. Then get the network to make the prediction and decode the
+        # network's policy output into a dictionary of move-prior pairs
         input_tensor, pieces = self.encoder.encode(game_state, True)
         priors, value = self.model.predict(input_tensor.reshape(1, 7, 7, 6))
         move_priors = self.encoder.decode_policy(priors[0], pieces)
@@ -154,6 +161,15 @@ class ZeroNet():
     
     
 class SixPlaneEncoder():
+    """
+    This class is used to encode a brandubh game state as a tensor which can
+    be fed into the neural network created by the ZeroNet class. It also has
+    methods for decoding the output tensor from the policy head of the network
+    into a dictionary of move-prior pairs, encoding a prior distribution as
+    a tensor with the same shape as the policy head output (used for creating
+    training data), and for expanding a training data set using symmetries of
+    the game board.
+    """
     def __init__(self):
         self.convert_to_tensor_element = {1: 'board_tensor[r,c,0] = 1',
                                           2: 'board_tensor[r,c,0] = 1;' +
@@ -163,6 +179,29 @@ class SixPlaneEncoder():
                                              'board_tensor[r,c,3] = 1'}
         
     def encode(self, game_state, return_pieces=False):
+        """
+        A game state is encoded as six 7x7 planes (or a tensor with shape 
+        (7,7,6)) as described below.
+        
+        The first 7x7 plane is an array of 0's and 1's encoding the positions 
+        of all pieces owned by the current player, i.e. the array has a 1 in 
+        entries corresponding to squares of the board occupied by one of the 
+        current players pieces and a 0 otherwise.
+        
+        The second 7x7 plane is an array encoding the position of king piece 
+        owned by the current player. If the player doesn't own a king then 
+        this plane will be all zeros, otherwise it will have a 1 in the 
+        relevant entry.
+        
+        The next two planes are the same as the first two but of the opposite 
+        player.
+        
+        The fifth plane is a 7x7 array of 1's if the current player is playing 
+        as white and is all 0's otherwise.
+        
+        The sixth plane is a 7x7 array of 1's if the current player is playing 
+        as black and is all 0's otherwise.
+        """
         board_tensor = np.zeros((7,7,6))
         player = game_state.player
         
@@ -185,7 +224,26 @@ class SixPlaneEncoder():
         return board_tensor
     
     def decode_policy(self, model_output, pieces):
-        # should return a dictionary of move - prior pairs
+        """
+        The policy head of the ZeroNet outputs a tensor with shape (7,7,24)
+        containing a probaility distribution over possible moves to make.
+        
+        The first two indices of the tensor correspond to a square on the 
+        board and the third index indicates a possible move that a piece at 
+        that square could possibly make.
+        
+        Values of the third index ranging from 0 to 5 correspond to decreasing
+        the y coordinate of the piece by 6 to 1 places respectively.
+        
+        Values of the third index ranging from 6 to 11 correspond to increasing
+        the y coordinate of the piece by 1 to 6 places respectively.
+        
+        Values of the third index ranging from 12 to 23 similarly correspond to
+        either decreasing or increasing the x coordinate of the piece.
+        
+        So the prior for moving the piece at square (3, 2) 2 places to (3, 4)
+        is output_tensor[3, 2, 7].
+        """
         move_priors = {}
         for (xi, yi) in pieces:
             
