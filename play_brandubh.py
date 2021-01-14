@@ -11,12 +11,14 @@ up and playing a game of brandubh.
 
 import time
 import utils
+import os
 
 from brandubh import GameState
 from bots.random_bot import RandomBot
 from bots.zero_bot.brandubh_zero import ZeroBot
+from bots.zero_bot.zero_network import ZeroNet
 
-
+#os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 def create_a_zero_bot():
     """
@@ -24,7 +26,11 @@ def create_a_zero_bot():
     brandubh.
     """
     bot = ZeroBot()
-    bot.load_bot("bots/zero_bot/model_data/")
+    if os.path.exists("bots/zero_bot/model_data/"):
+        bot.load_bot("bots/zero_bot/model_data/")
+    else:
+        bot.network = ZeroNet()
+            
     return bot
 
 # A dictionary used to map input from the user to constructors for different
