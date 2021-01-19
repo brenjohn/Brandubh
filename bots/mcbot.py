@@ -33,19 +33,19 @@ class MCTSBot:
         position the bot is trying to decide a move for. 
         
         The algorithm starts with a root node and then adds child nodes to
-        the rooth until all no more can be added to the root node (i.e. all
-        legal moves from the current board position have been added). Once 
-        all possible child nodes have been added to a node, the algorithm
-        picks a child node at random (using uct score) to add a child node to.
+        the root until no more can be added (i.e. all legal moves from the 
+        current board position have been added). Once all possible child nodes 
+        have been added to a node, the algorithm picks a child node at random 
+        (using uct score) to add a child node to.
         
         Each time a child node is added to the tree, a random game is played 
         until the a winner is decided, begining from the board position 
         represented by the new child node. The winner is saved in the node
         and passed to all parent nodes. So that each node in the tree has a
-        record of how many random games the black or white player won that
-        began from a board position that stemmed from that node. The ratio
-        of black wins vs white wins gives a way of ranking how good a move
-        is for a particular player.
+        record of how many random games, beginning from the corresponding
+        board position, the black or white player won. The ratio of black wins 
+        vs white wins gives a way of ranking how good a board position is for 
+        a particular player.
         
         This continues until a given number of nodes ('num_rounds') are
         added to the tree.
