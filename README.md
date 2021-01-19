@@ -6,3 +6,21 @@ Brandubh is an Irish variation of the ancient board game known as Hnefatafl. The
 https://www.ancientgames.org/hnefatafl-brandubh/
 
 The game implemented here currently uses a simplified version of these rules which are described in the rulebook contained in the game and will eventually be updated to include rules from the above link that have been ommited.
+
+
+### Design
+
+Brandubh container diagram:
+
+<kbd>
+  <img src="https://github.com/brenjohn/Brandubh/blob/master/images/Brandubh_components.png"  width="751" height="471" />
+</kbd>
+
+<br />
+<br />
+  
+Bots component diagram:
+
+<kbd>
+  <img src="https://github.com/brenjohn/Brandubh/blob/master/images/bots_diagram.png"  width="891" height="491" />
+</kbd>
