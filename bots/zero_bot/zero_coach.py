@@ -13,10 +13,10 @@ sys.path.append("..")
 sys.path.append("../..")
 
 import keras
-import copy
 
 from brandubh_zero import ZeroBot
-from zero_training_utils import gain_experience, create_training_data
+from zero_training_utils import gain_experience
+from zero_training_utils import save_training_data, load_training_data
 
 
 
@@ -33,6 +33,14 @@ from zero_network import ZeroNet
 
 net = ZeroNet()
 bot = ZeroBot(50, net)
+
+
+
+# %% .
+from dual_network import DualNet
+
+net = DualNet()
+bot = ZeroBot(5, net)
 
 
 
@@ -58,6 +66,17 @@ bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
 
 
 
+# %%
+bot.network.black_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
+                  loss=['categorical_crossentropy', 'mse'],
+                  loss_weights=[1.0, 1.0])
+
+bot.network.white_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
+                  loss=['categorical_crossentropy', 'mse'],
+                  loss_weights=[1.0, 1.0])
+
+
+
 # %% Evaluate the bot
 num_games = 100
 bot.evaluate_against_old_bot(num_games)
@@ -68,39 +87,37 @@ bot.evaluate_against_rand_bot(num_games)
 # %% train the bot
 import os
 
-num_episodes = 50
-num_cycles = 2000
+num_episodes = 1
+num_cycles = 3
 
-max_num_white_pieces = 4
-max_num_black_pieces = 8
-moves_limit = 500
-
-model_num = 0
+max_num_white_pieces = 1
+max_num_black_pieces = 3
+moves_limit = 100
 
 for cycle in range(num_cycles):
     
-    if (cycle)%10 == 0:
-        bot.evaluate_against_old_bot(100)
-        bot.evaluate_against_rand_bot(100)
-        model_directory = "model_{0}_data/".format(model_num)
-        if not os.path.exists(model_directory):
-            os.makedirs(model_directory)
-        bot.save_bot(model_directory)
-        model_num += 1
+    print('\nEvaluating the bot')
+    if (cycle)%1 == 0:
+        bot.evaluate_against_old_bot(1)
+        bot.evaluate_against_rand_bot(1)
     
     print('\nGainning experience, cycle {0}'.format(cycle))
     experience = gain_experience(bot, num_episodes,
-                                 max_num_white_pieces, 
-                                 max_num_black_pieces,
+                                 None, 
+                                 None,
                                  moves_limit)
     
     print('Preparing training data')
-    X, Y, rewards = create_training_data(bot, experience)
+    # Add the generated experience to the bank of training data and load all
+    # training data
+    training_data = bot.network.create_training_data(experience)
+    save_training_data(training_data, cycle)
+    training_data = load_training_data()
     
     print('\nTraining network, cycle {0}'.format(cycle))
-    print('Training model on {0} moves'.format(len(X)))
-    losses = bot.network.model.fit(X, [Y, rewards], batch_size=128, epochs=1)
-    bot.save_losses(losses)
+    losses = bot.network.train(training_data, batch_size=256, epochs=1)
+    bot.network.save_losses(losses)
+    bot.save_bot("model_data/model_{0}_data/".format(cycle))
         
     
     
@@ -117,10 +134,15 @@ old_err = [((1-evaluation[0]**2)/evaluation[3])**0.5
 ran_err = [((1-evaluation[0]**2)/evaluation[3])**0.5 
            for evaluation in bot.evaluation_history_ran]
 
-plt.errorbar(range(len(bot.evaluation_history_old)), score_old, old_err, 
-             label="old")
-plt.errorbar(range(len(bot.evaluation_history_ran)), score_ran, ran_err,
-             label="random")
+num_games = [10*evaluation[4] for evaluation in bot.evaluation_history_old]
+
+plt.errorbar(num_games, score_old, old_err, 
+             label="Initial zero bot")
+plt.errorbar(num_games, score_ran, ran_err,
+             label="random bot")
+plt.xlabel("Number of self-play games played")
+plt.ylabel("Average score against opponent")
+plt.title("Zero bot performance history")
 plt.legend()
 
 

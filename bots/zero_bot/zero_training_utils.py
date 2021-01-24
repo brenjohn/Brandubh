@@ -10,6 +10,7 @@ can learn from and creating training data for the associated neural network.
 """
 import numpy as np
 import random
+import os
 
 from brandubh import GameState
 
@@ -133,7 +134,7 @@ def create_training_data(bot, experience):
     """
     A function to convert game data in an experience list to training data
     for training the ZeroBot neural network. The training data is also
-    expanded 8 fold using sysmetries of the game. 
+    expanded 8 fold using symetries of the game. 
     """
     
     # The network input and labels forming the training set will be stored in
@@ -171,6 +172,34 @@ def create_training_data(bot, experience):
     rewards = np.concatenate(8*rewards)
         
     return X, Y, rewards
+
+
+def save_training_data(training_data, cycle):
+    if not os.path.exists('data_bank/training_set_{0}'.format(cycle)):
+        os.makedirs('data_bank/training_set_{0}'.format(cycle))
+            
+    for i, variable in enumerate(training_data):
+        filename = 'data_bank/training_set_{0}/variable_{1}'.format(cycle, i)
+        np.save(filename, variable)
+        
+def load_training_data():
+    training_data = {}
+    cycle = 0
+    while os.path.exists('data_bank/training_set_{0}'.format(cycle)):
+        i = 0
+        variable_name = 'data_bank/training_set_{0}/variable_{1}.npy'.format(cycle, i)
+        while os.path.exists(variable_name):
+            if i in training_data.keys():
+                training_data[i] = np.concatenate([training_data[i], np.load(variable_name)])
+            else:
+                training_data[i] = np.load(variable_name)
+            i += 1
+            variable_name = 'data_bank/training_set_{0}/variable_{1}.npy'.format(cycle, i)
+        cycle += 1
+        
+    training_data = tuple(training_data[j] for j in range(i))
+    return training_data
+    
 
 
 def random_starting_position(num_white_pieces, num_black_pieces):

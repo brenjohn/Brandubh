@@ -11,6 +11,7 @@ the AlphaGo-Zero approach.
 
 import numpy as np
 import copy
+import os
 
 from brandubh import Act, GameState
 from bots.random_bot import RandomBot
@@ -340,8 +341,10 @@ class ZeroBot:
         its neural network under the directory given by the parameter 
         'prefix'
         """
+        if not os.path.exists(prefix):
+            os.makedirs(prefix)
+            
         network_load_command = self.network.save_network(prefix)
-        
         attributes = {"num_rounds" : self.num_rounds,
                       "c" : self.c,
                       "alpha" : self.alpha,
@@ -420,10 +423,6 @@ class TreeNode:
     references to any child nodes attached to the current instance in the tree
     structure and branch objects containing statistics regarding the search 
     history of the select_move method.
-    
-    TODO: It may be cleaner to combine the TreeNode and Branch classes into
-    one. Only a single dictionary would be required then. Should think about
-    if or how this would affect performance of the select_move method.
     """
     def __init__(self, game_state, value, priors, parent, last_move):
         self.state = game_state

@@ -44,3 +44,5 @@ create/implement interface for zero networks
 Review the addition of dirichlet noise to move selection
 
 Add the Monte-Carlo bot to the agents that can be played against.
+
+Add training function to zero bot and network classes.

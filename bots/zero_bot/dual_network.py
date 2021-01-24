@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Dec 19 23:16:53 2020
+Created on Sat Jan 23 16:09:30 2021
 
 @author: john
 
-This file defines two classes which define a neural network and implements the
-interface a ZeroBot needs to interact with the neural network in order to 
-predict the value of board positions, predict valuable moves that can be made
-from a board position and to prepare training data to train and improve the
-network.
+This file contains two classes defining a neural network which can be used
+by a ZeroBot. The classes implement the interface a ZeroBot needs to interact 
+with the neural network in order to predict the value of a board position and 
+a distribution over moves that can be made from a board position.
 
-The ZeroNet class has a keras neural network for predicting the value of a
-board-position/game-state and the distribution of visits a ZeroBot will make
-to branches of the decision tree stemming from the board-position.
+The DualNet class has a keras neural network for predicting the value of a
+board-position/game-state and the distribution of visits the ZeroBot
+select move algorithm will make to branches of the decision tree stemming 
+from the board-position.
 
-The SixPlaneEncoder class is used to convert a game-state to an input tensor
+The ThreePlaneEncoder class is used to convert a game-state to an input tensor
 for the neural network and to convert the output of the network to a 
 dictionary of move-value pairs. It also has methods for expanding training 
 data for the network.
@@ -34,13 +34,13 @@ from keras.layers import LeakyReLU, add
 from keras.models import load_model
 
 
-class ZeroNet():
+class DualNet():
     """
-    This class has methods for building, saving and loading a nerual network
-    to be used by a Zerobot.
+    This class has methods for building, saving and loading nerual networks
+    to make predictions required by a Zerobot.
     
     The network architecture is as follows:
-        The input layer consists of 6 7x7 arrays of neurons (see encoder class)
+        The input layer consists of 3 7x7 arrays of neurons (see encoder class)
         
         The input is then passed to a convolutional layer with 64 filters and
         a 3x3 kernal
@@ -66,9 +66,11 @@ class ZeroNet():
     """
     
     def __init__(self):
-        self.model = ZeroNet.build_model()
-        self.encoder = SixPlaneEncoder()
-        self.loss_history = []
+        self.black_model = DualNet.build_model()
+        self.white_model = DualNet.build_model()
+        self.encoder = ThreePlaneEncoder()
+        self.loss_history_b = []
+        self.loss_history_w = []
         
     @classmethod
     def conv_layer(cls, x, filters, kernel_size):
@@ -82,7 +84,7 @@ class ZeroNet():
     @classmethod
     def residual_layer(cls, input_block, filters, kernel_size):
         
-        x = ZeroNet.conv_layer(input_block, filters, kernel_size)
+        x = DualNet.conv_layer(input_block, filters, kernel_size)
         x = Conv2D(filters, kernel_size, use_bias = True,
                    padding = 'same', activation = 'linear')(x)
         # x = BatchNormalization(axis=1)(x)
@@ -93,7 +95,7 @@ class ZeroNet():
     @classmethod
     def value_head(cls, x):
         
-        x = Conv2D(filters = 32, kernel_size = (3, 3), use_bias = True,
+        x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = True,
                    padding = 'same', activation = 'linear')(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
@@ -118,16 +120,16 @@ class ZeroNet():
     @classmethod
     def build_model(cls):
         """
-        This method builds the network model when a ZeroNet is initialised.
+        This method builds the network model when a DualNet is initialised.
         """
-        board_input = Input(shape=(7,7,6), name='board_input')
+        board_input = Input(shape=(7,7,3), name='board_input')
         
-        processed_board = ZeroNet.conv_layer(board_input, 64, (3, 3))
+        processed_board = DualNet.conv_layer(board_input, 14, (3, 3))
         for i in range(7):
-            processed_board = ZeroNet.residual_layer(processed_board, 64, (3, 3))
+            processed_board = DualNet.residual_layer(processed_board, 14, (3, 3))
             
-        value_output = ZeroNet.value_head(processed_board)
-        policy_output = ZeroNet.policy_head(processed_board)
+        value_output = DualNet.value_head(processed_board)
+        policy_output = DualNet.policy_head(processed_board)
         
         model = Model(inputs=board_input, 
                       outputs=[policy_output, value_output])
@@ -135,14 +137,18 @@ class ZeroNet():
     
     def predict(self, game_state):
         """
-        This method uses the neural network to predict the value of a board 
+        This method uses the neural networks to predict the value of a board 
         position and the prior distribution over possible next moves.
         """
         # First encode the game state as a tensor which can be passed to the
         # network. Then get the network to make the prediction and decode the
         # network's policy output into a dictionary of move-prior pairs
         input_tensor, pieces = self.encoder.encode(game_state, True)
-        priors, value = self.model.predict(input_tensor.reshape(1, 7, 7, 6))
+        input_tensor = input_tensor.reshape(1, 7, 7, 3)
+        if game_state.player == -1:
+            priors, value = self.black_model.predict(input_tensor)
+        else:
+            priors, value = self.white_model.predict(input_tensor)
         move_priors = self.encoder.decode_policy(priors[0], pieces)
         
         # Normalise the move prior distribution
@@ -152,27 +158,16 @@ class ZeroNet():
         return move_priors, value[0][0]
     
     def save_network(self, prefix="model_data/"):
-        self.model.save(prefix + 'zero_model.h5')
-        load_command = "from bots.zero_bot.zero_network import ZeroNet; "
-        load_command += "self.network = ZeroNet()"
+        self.black_model.save(prefix + 'black_model.h5')
+        self.white_model.save(prefix + 'white_model.h5')
+        load_command = "from bots.zero_bot.dual_network import DualNet; "
+        load_command += "self.network = DualNet()"
         return load_command
         
     def load_network(self, prefix="model_data/"):
-        self.model = load_model(prefix + 'zero_model.h5')
+        self.black_model = load_model(prefix + 'black_model.h5')
+        self.white_model = load_model(prefix + 'black_model.h5')
         
-    def train(self, training_data, batch_size, epochs):
-        X, Y, rewards = training_data
-        return self.model.fit(X, [Y, rewards], 
-                              batch_size=batch_size, epochs=epochs)
-    
-    def save_losses(self, loss_history):
-        """
-        Method to save the evaulations of the loss function of the neural
-        network on training data.
-        """
-        losses = [loss[0] for loss in loss_history.history.values()]
-        self.loss_history.append(losses)
-    
     def create_training_data(self, experience):
         """
         A method to convert game data in an experience list to training data
@@ -182,7 +177,8 @@ class ZeroNet():
         
         # The network input and labels forming the training set will be stored 
         # in the following lists.
-        X, Y, rewards = [], [], []
+        X_b, Y_b, rewards_b = [], [], []
+        X_w, Y_w, rewards_w = [], [], []
         
         # For each episode in the experience append the relevant tensors to 
         # the X, Y and reward lsits.
@@ -190,7 +186,6 @@ class ZeroNet():
             
             Xi =  np.array(episode['boards']) 
             num_moves = Xi.shape[0]
-            X.append(Xi)
             
             visit_counts = episode['prior_targets']
             policy_targets = self.encoder.encode_priors(visit_counts)
@@ -199,28 +194,58 @@ class ZeroNet():
             # moves between it and the winning move. Rewards for moves made by 
             # the winning side are positive and negative for the losing side.
             episode_rewards = episode['winner'] * np.array(episode['players'])
-            episode_rewards = (np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
-                                     )) * episode_rewards
+            episode_rewards *= 1*(np.arange(num_moves)-(num_moves-41) > 0)
             
-            rewards.append( episode_rewards )
-            
-            Y.append( policy_targets )
+            for n, player in enumerate(episode['players']):
+                if player == -1:
+                    X_b.append(Xi[n])
+                    Y_b.append(policy_targets[n])
+                    rewards_b.append(episode_rewards[n])
+                    
+                else:
+                    X_w.append(Xi[n])
+                    Y_w.append(policy_targets[n])
+                    rewards_w.append(episode_rewards[n])
           
         # Convert the X, Y lists into numpy arrays
-        X = np.concatenate(X)
-        Y = np.concatenate(Y)
+        X_b = np.stack(X_b)
+        X_w = np.stack(X_w)
+        Y_b = np.stack(Y_b)
+        Y_w = np.stack(Y_w)
         
         # Use the bot's game encoder to expand the training data 8 fold.
-        X, Y = self.encoder.expand_data(X, Y)
-        rewards = np.concatenate(8*rewards)
+        X_b, Y_b = self.encoder.expand_data(X_b, Y_b)
+        rewards_b = np.stack(8*rewards_b)
+        
+        X_w, Y_w = self.encoder.expand_data(X_w, Y_w)
+        rewards_w = np.stack(8*rewards_w)
             
-        return X, Y, rewards
+        return X_b, X_w, Y_b, Y_w, rewards_b, rewards_w
+    
+    def train(self, training_data, batch_size, epochs):
+        X_b, X_w, Y_b, Y_w, rewards_b, rewards_w = training_data
+        loss_b = self.black_model.fit(X_b, [Y_b, rewards_b], 
+                             batch_size=batch_size, epochs=epochs)
+        loss_w = self.white_model.fit(X_w, [Y_w, rewards_w], 
+                             batch_size=batch_size, epochs=epochs)
+        return loss_b, loss_w
+    
+    def save_losses(self, loss_history):
+        """
+        Method to save the evaulations of the loss function of the neural
+        network on training data.
+        """
+        losses_history_b, losses_history_w = loss_history
+        losses_b = [loss[0] for loss in losses_history_b.history.values()]
+        losses_w = [loss[0] for loss in losses_history_w.history.values()]
+        self.loss_history_b.append(losses_b)
+        self.loss_history_w.append(losses_w)
     
     
-class SixPlaneEncoder():
+class ThreePlaneEncoder():
     """
     This class is used to encode a brandubh game state as a tensor which can
-    be fed into the neural network created by the ZeroNet class. It also has
+    be fed into the neural network created by the DualNet class. It also has
     methods for decoding the output tensor from the policy head of the network
     into a dictionary of move-prior pairs, encoding a prior distribution as
     a tensor with the same shape as the policy head output (used for creating
@@ -229,52 +254,37 @@ class SixPlaneEncoder():
     """
     def __init__(self):
         self.convert_to_tensor_element = {1: 'board_tensor[r,c,0] = 1',
-                                          2: 'board_tensor[r,c,0] = 1;' +
-                                             'board_tensor[r,c,1] = 1',
-                                         -1: 'board_tensor[r,c,2] = 1',
-                                         -2: 'board_tensor[r,c,2] = 1;' +
-                                             'board_tensor[r,c,3] = 1'}
+                                          2: 'board_tensor[r,c,1] = 1',
+                                         -1: 'board_tensor[r,c,2] = 1'}
         
     def encode(self, game_state, return_pieces=False):
         """
-        A game state is encoded as six 7x7 planes (or a tensor with shape 
-        (7,7,6)) as described below.
+        A game state is encoded as three 7x7 planes (or a tensor with shape 
+        (7,7,3)) as described below.
         
         The first 7x7 plane is an array of 0's and 1's encoding the positions 
-        of all pieces owned by the current player, i.e. the array has a 1 in 
-        entries corresponding to squares of the board occupied by one of the 
-        current players pieces and a 0 otherwise.
+        of all soldier pieces owned by the white player, i.e. the array has a 
+        1 in entries corresponding to squares of the board occupied by a white
+        soldier.
         
-        The second 7x7 plane is an array encoding the position of king piece 
-        owned by the current player. If the player doesn't own a king then 
-        this plane will be all zeros, otherwise it will have a 1 in the 
-        relevant entry.
+        The second 7x7 plane is an array encoding the position of king piece.
         
-        The next two planes are the same as the first two but of the opposite 
-        player.
-        
-        The fifth plane is a 7x7 array of 1's if the current player is playing 
-        as white and is all 0's otherwise.
-        
-        The sixth plane is a 7x7 array of 1's if the current player is playing 
-        as black and is all 0's otherwise.
+        The third plane encodes the position of all the black pieces.
         """
-        board_tensor = np.zeros((7,7,6))
+        board_tensor = np.zeros((7,7,3))
         player = game_state.player
         
         if player == 1:
             pieces = game_state.game_set.white_pieces
-            board_tensor[:, :, 4] = 1
         else:
             pieces = game_state.game_set.black_pieces
-            board_tensor[:, :, 5] = 1
         
         for (r, c) in game_state.game_set.white_pieces:
             piece = game_state.game_set.board[(r, c)]
-            exec(self.convert_to_tensor_element[piece*player])
+            exec(self.convert_to_tensor_element[piece])
             
         for (r, c) in game_state.game_set.black_pieces:
-            exec(self.convert_to_tensor_element[-1*player])
+            exec(self.convert_to_tensor_element[-1])
         
         if return_pieces:
             return board_tensor, pieces
@@ -282,7 +292,7 @@ class SixPlaneEncoder():
     
     def decode_policy(self, model_output, pieces):
         """
-        The policy head of the ZeroNet outputs a tensor with shape (7,7,24)
+        The policy head of the DualNet outputs a tensor with shape (7,7,24)
         containing a probaility distribution over possible moves to make.
         
         The first two indices of the tensor correspond to a square on the 
