@@ -187,7 +187,8 @@ class ZeroBot:
         # If a root node is being created, then add some dirichlet noise
         # to the prior probabilities to help exploration.
         if parent == None:
-            dirichlet_noise = np.random.dirichlet([self.alpha]*96)
+            num_branches = len(move_priors)
+            dirichlet_noise = np.random.dirichlet([self.alpha]*num_branches)
             for (i, move) in enumerate(move_priors.keys()):
                 move_priors[move] = (move_priors[move] + dirichlet_noise[i])/2
         
