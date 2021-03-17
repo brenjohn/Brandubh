@@ -296,7 +296,7 @@ class ZeroBot:
         # epochs the bot has trained for before being evaluated.
         return [score/num_games, 2*num_games_won_as_white/num_games,
                 2*num_games_won_as_black/num_games, 
-                num_games, len(self.loss_history)]
+                num_games, self.network.num_epochs()]
     
     def evaluate_against_rand_bot(self, num_games, 
                                   num_white_pieces = None, 

@@ -13,7 +13,7 @@ import math
 import random
 import copy
 from brandubh import Act
-from random_bot import RandomBot
+from .random_bot import RandomBot
 
 
 class MCTSBot:
@@ -54,7 +54,7 @@ class MCTSBot:
         next move
     """
     
-    def __init__(self, num_rounds, temp):
+    def __init__(self, num_rounds=100, temp=1.4):
         self.num_rounds = num_rounds
         self.temperature = temp
         self.bot = RandomBot()

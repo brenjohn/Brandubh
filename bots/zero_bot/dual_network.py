@@ -168,6 +168,9 @@ class DualNet():
         self.black_model = load_model(prefix + 'black_model.h5')
         self.white_model = load_model(prefix + 'black_model.h5')
         
+    def num_epochs(self):
+        return len(self.loss_history_w)
+        
     def create_training_data(self, experience):
         """
         A method to convert game data in an experience list to training data

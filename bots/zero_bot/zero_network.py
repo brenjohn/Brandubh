@@ -172,6 +172,9 @@ class ZeroNet():
         """
         losses = [loss[0] for loss in loss_history.history.values()]
         self.loss_history.append(losses)
+        
+    def num_epochs(self):
+        return len(self.loss_history)
     
     def create_training_data(self, experience):
         """

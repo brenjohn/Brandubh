@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+2#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Sun Jun 21 19:28:27 2020
@@ -16,7 +16,7 @@ from brandubh import GameState
 
 
 
-def simulate_game(bot, starting_board=None, max_moves=0):
+def simulate_game(bot, starting_board=None, max_moves=0, eps=0):
     """
     A function to get the provided bot to play a single game of brandubh
     against itself in order to generate training data for the bot.
@@ -60,6 +60,9 @@ def simulate_game(bot, starting_board=None, max_moves=0):
         action, visit_counts = bot.select_move(game, 
                                                return_visit_counts=True)
         
+        if np.random.rand() < eps:
+            action = bot.rand_bot.select_move(game)
+        
         if action.is_play:
             # Encode and record the game-state as well as the visit counts and
             # the player that made the move.
@@ -83,7 +86,8 @@ def simulate_game(bot, starting_board=None, max_moves=0):
 
 def gain_experience(bot, num_episodes, max_num_white_pieces = None, 
                                        max_num_black_pieces = None,
-                                       moves_limit = None):
+                                       moves_limit = None,
+                                       eps = 0):
     """
     A function to repeatedly call the above simulate_game function in order to
     create a data set of games to train a ZeroBot on.
@@ -115,7 +119,7 @@ def gain_experience(bot, num_episodes, max_num_white_pieces = None,
             
         # Play a game and collect the generated data into the episode 
         # dictionary.
-        game_details = simulate_game(bot, board, moves_limit)
+        game_details = simulate_game(bot, board, moves_limit, eps)
         boards, moves, prior_targets, players, winner = game_details
         
         episode['boards'] = boards

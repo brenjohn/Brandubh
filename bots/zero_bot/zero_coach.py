@@ -21,18 +21,26 @@ from zero_training_utils import save_training_data, load_training_data
 
 
 # %% .
-from my_first_zerobot_network import FirstZeroNet
+# from my_first_zerobot_network import FirstZeroNet
 
-net = FirstZeroNet()
-bot = ZeroBot(10, net)
+# net = FirstZeroNet()
+# bot = ZeroBot(10, net)
+
+# bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
+#                   loss=['categorical_crossentropy', 'mse'],
+#                   loss_weights=[1.0, 1.0])
 
 
 
 # %% .
-from zero_network import ZeroNet
+# from zero_network import ZeroNet
 
-net = ZeroNet()
-bot = ZeroBot(50, net)
+# net = ZeroNet()
+# bot = ZeroBot(50, net)
+
+# bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
+#                   loss=['categorical_crossentropy', 'mse'],
+#                   loss_weights=[1.0, 1.0])
 
 
 
@@ -40,7 +48,15 @@ bot = ZeroBot(50, net)
 from dual_network import DualNet
 
 net = DualNet()
-bot = ZeroBot(5, net)
+bot = ZeroBot(7, net)
+
+bot.network.black_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
+                  loss=['categorical_crossentropy', 'mse'],
+                  loss_weights=[1.0, 0.2])
+
+bot.network.white_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
+                  loss=['categorical_crossentropy', 'mse'],
+                  loss_weights=[1.0, 0.2])
 
 
 
@@ -49,70 +65,34 @@ bot.save_as_old_bot()
 
 
 
-# %%
-bot.model.compile(optimizer=keras.optimizers.SGD(lr=0.0000001, 
-                                            momentum=0.9,
-                                            nesterov=True,
-                                            clipnorm=1.0),
-                  loss=['categorical_crossentropy', 'mse'],
-                  loss_weights=[0.5, 1.0])
-
-
-
-# %%
-bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
-                  loss=['categorical_crossentropy', 'mse'],
-                  loss_weights=[1.0, 1.0])
-
-
-
-# %%
-bot.network.black_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
-                  loss=['categorical_crossentropy', 'mse'],
-                  loss_weights=[1.0, 1.0])
-
-bot.network.white_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
-                  loss=['categorical_crossentropy', 'mse'],
-                  loss_weights=[1.0, 1.0])
-
-
-
-# %% Evaluate the bot
-num_games = 100
-bot.evaluate_against_old_bot(num_games)
-bot.evaluate_against_rand_bot(num_games)
-
-
-
 # %% train the bot
 import os
 
 num_episodes = 1
-num_cycles = 3
+num_cycles = 28
 
-max_num_white_pieces = 1
-max_num_black_pieces = 3
 moves_limit = 100
 
 for cycle in range(num_cycles):
     
-    print('\nEvaluating the bot')
-    if (cycle)%1 == 0:
+    if (cycle)%14 == 0:
+        print('\nEvaluating the bot')
         bot.evaluate_against_old_bot(1)
         bot.evaluate_against_rand_bot(1)
     
     print('\nGainning experience, cycle {0}'.format(cycle))
+    eps = 1.0/(1.0 + cycle/14.0)
     experience = gain_experience(bot, num_episodes,
                                  None, 
                                  None,
-                                 moves_limit)
+                                 moves_limit,
+                                 eps)
     
     print('Preparing training data')
     # Add the generated experience to the bank of training data and load all
     # training data
     training_data = bot.network.create_training_data(experience)
     save_training_data(training_data, cycle)
-    training_data = load_training_data()
     
     print('\nTraining network, cycle {0}'.format(cycle))
     losses = bot.network.train(training_data, batch_size=256, epochs=1)
@@ -134,15 +114,17 @@ old_err = [((1-evaluation[0]**2)/evaluation[3])**0.5
 ran_err = [((1-evaluation[0]**2)/evaluation[3])**0.5 
            for evaluation in bot.evaluation_history_ran]
 
-num_games = [10*evaluation[4] for evaluation in bot.evaluation_history_old]
+num_games = [evaluation[4] for evaluation in bot.evaluation_history_old]
 
 plt.errorbar(num_games, score_old, old_err, 
              label="Initial zero bot")
+
 plt.errorbar(num_games, score_ran, ran_err,
              label="random bot")
-plt.xlabel("Number of self-play games played")
+
+plt.xlabel("Number of epochs. (1 epoch = {0} games)".format(num_episodes))
 plt.ylabel("Average score against opponent")
-plt.title("Zero bot performance history")
+plt.title("ZeroBot performance history")
 plt.legend()
 
 

@@ -15,6 +15,7 @@ import os
 
 from brandubh import GameState
 from bots.random_bot import RandomBot
+from bots.mcbot import MCTSBot
 from bots.zero_bot.brandubh_zero import ZeroBot
 from bots.zero_bot.zero_network import ZeroNet
 
@@ -37,6 +38,7 @@ def create_a_zero_bot():
 # agents that may play in a game.
 PLAYERS = {"user": utils.Player,
            "rand": RandomBot,
+           "mcbot": MCTSBot,
            "zero": create_a_zero_bot}
 
 
@@ -137,13 +139,13 @@ def main():
             while black_player not in PLAYERS:
                 time.sleep(0.2)
                 black_player = input('Who will play as black?' + \
-                                     ' (user, rand or zero) -')
+                                     ' (user, rand, mcbot, or zero) -')
                 
             white_player = ''
             while white_player not in PLAYERS:
                 time.sleep(0.2)
                 white_player = input('Who will play as white?' + \
-                                     ' (user, rand or zero) -')
+                                     ' (user, rand, mcbot or zero) -')
                     
             black_player = PLAYERS[black_player]()
             white_player = PLAYERS[white_player]()
