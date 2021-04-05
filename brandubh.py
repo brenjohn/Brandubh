@@ -210,48 +210,29 @@ class GameState:
         self.game_set = game_set
         self.player = player
         self.winner = 0
+        self.history = HistoryLink(game_set.board, player)
 
 
     def take_turn(self, action):
         """
         This method updates a GameState object by applying the move
-        represented by the given Act object 'action'
+        represented by the given Act object 'action'. The rules of the game
+        are checked before the move is made to make sure it is legal.
         """
+        move_illegal = None
         if action.is_play:
             move_illegal = self.is_move_illegal(action.move)
-            if not move_illegal:
-
-                # If move is not illegal, move the piece
-                self.game_set.move_piece(action.move)
-
-                # If King moved to corner square, white wins
-                if action.move[2:] in self.game_set.hostile_squares:
-                    self.winner = 1
- 
-                # If King is captured, black wins
-                if self.game_set.king_captured:
-                    self.winner = -1
-
-                # The other player makes a move next
-                self.player *= -1
-            else:
-                return move_illegal
-
-        elif action.is_resign:
-            self.winner = -1*self.player
-
+            
+        if not move_illegal:
+            self.take_turn_with_no_checks(action)
         else:
-            # If action is a pass, the other player makes a move next
-            self.player *= -1
+            return move_illegal
     
     
     def take_turn_with_no_checks(self, action):
         """
-        This method is the same as take_turn but without the checks making
-        sure the action is legal. This method is intended to be used by
-        bot training algorithms that simulate lots of games. Removing the
-        checks offers some speed up and are redundant if the bots only
-        select legal moves
+        This method updates a GameState object by applying the move
+        represented by the given Act object 'action'.
         """
         if action.is_play:
             # Move the piece
@@ -267,10 +248,20 @@ class GameState:
 
             # The other player makes a move next
             self.player *= -1
+            
+            # Add the new game state to the game hisory.
+            self.history = HistoryLink(self.game_set.board, 
+                                       self.player,
+                                       action.move,
+                                       self.history)
 
-        else:
+        elif action.is_pass:
             # If action is a pass, the other player makes a move next
             self.player *= -1
+            
+        else:
+            # If the action is a resignation, the other player wins.
+            self.winner = -1*self.player
 
 
     @classmethod
@@ -313,7 +304,7 @@ class GameState:
 
     def is_move_illegal(self, move):
         """
-        This method checks if a given move violates any game rules
+        This method checks if a given move violates any game rules.
         """
 
         # You can't make a move if the game is over
@@ -337,6 +328,7 @@ class GameState:
             return 'You cannot move soldiers to special squares'
 
         # Check for pieces standing between (xi,yi) and (xf,yf)
+        valid_move = False
         xi, yi, xf, yf = move
         if xi == xf:
             increment = 1 if yi-yf > 0 else -1
@@ -344,7 +336,7 @@ class GameState:
                 if game_set.board[(xf, i)] != 0:
                     return 'You cannot jump pieces'
             else:
-                return None
+                valid_move = True
 
         if yi == yf:
             increment = 1 if xi-xf > 0 else -1
@@ -352,10 +344,16 @@ class GameState:
                 if game_set.board[(i, yf)] != 0:
                     return 'You cannot jump pieces'
             else:
-                return None
+                valid_move = True
+            
+        # Get the board position if the move was made and check that it hasn't
+        # occurred already in the game history.
+        if valid_move:
+            return self.moves_into_previous_board_position(initial_point, 
+                                                           final_point)
 
-        # If none of the 'return None' statements are reached, the move must
-        # be illegal
+        # If the 'return None' statement is not reached, the move must be 
+        # illegal
         return 'That is not a valid move'
 
 
@@ -393,9 +391,52 @@ class GameState:
                     if new_sq in game_set.special_squares and \
                         game_set.board[piece] != 2:
                         break
+                    if self.moves_into_previous_board_position(piece, new_sq):
+                        continue
                     moves.append(piece + new_sq)
 
         return moves
+    
+    
+    def moves_into_previous_board_position(self, initial_point, final_point):
+        """
+        Checks if the moving the piece at 'initial_point' to 'final_point'
+        moves the game state into a board position which as already occurred
+        in the game. Returns an error message if it does and 'None' if it
+        doesn't.
+        """
+        # Create the board position the game would be in if the  specified 
+        # move was made.
+        next_board = self.game_set.board.copy()
+        piece = next_board[initial_point]
+        next_board[final_point] = piece
+        next_board[initial_point] = 0
+        
+        # Check if the above board position matches any of the board positions
+        # in the game history.
+        historic_state = self.history
+        while not historic_state == None:
+            if next_board == historic_state.board:
+                return 'You cannot move into a previous board position'
+            historic_state = historic_state.previous_state
+        else:
+            return None
+    
+
+
+class HistoryLink:
+    """
+    This link class can be used to store the history of a game in a linked 
+    list. Each link in the list records the board position of a turn in the
+    game history and which player was making the next move.
+    """
+    
+    def __init__(self, board, player, move=None, previous_state=None):
+        self.board = board.copy()
+        self.player = player
+        self.last_move = move
+        self.previous_state = previous_state
+        self.turn = 0 if previous_state == None else previous_state.turn + 1
 
 
 
