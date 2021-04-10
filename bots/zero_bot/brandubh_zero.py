@@ -15,7 +15,6 @@ import os
 
 from brandubh import Act, GameState
 from bots.random_bot import RandomBot
-from bots.zero_bot.zero_training_utils import random_starting_position
 
 
 
@@ -229,9 +228,7 @@ class ZeroBot:
             # state corresponding to the given node.
             return None
     
-    def evaluate_against_bot(self, opponent_bot, num_games, 
-                             num_white_pieces = None, 
-                             num_black_pieces = None,
+    def evaluate_against_bot(self, opponent_bot, num_games,
                              max_num_of_turns = 1000):
         """
         This method evaluates the current bot against a given opponent bot
@@ -253,15 +250,7 @@ class ZeroBot:
         for i in range(num_games):
             print('\rPlaying game {0}, score: w = {1}, b = {2}.'.format(i, 
                     num_games_won_as_white, num_games_won_as_black),end='')
-            
-            # If a maximum number of white or black pieces is given, then
-            # use a random starting position for the game.
-            if num_white_pieces or num_black_pieces:
-                starting_board = random_starting_position(num_white_pieces, 
-                                                          num_black_pieces)
-                game = GameState.new_game(starting_board)
-            else:
-                game = GameState.new_game()
+            game = GameState.new_game()
             
             # Get both bots to play a game of brandubh.
             turns_taken = 0
@@ -289,8 +278,12 @@ class ZeroBot:
             else:
                 score -= 1
                 zero_bot_player *= -1
-                
-        print(' done.')
+               
+        message = '\rFinished playing {0} games. Score: w = {1}, b = {2}.'
+        print(message.format(num_games, 
+                             num_games_won_as_white, 
+                             num_games_won_as_black))
+        
         # Return the evaluation score of the bot along with fraction of games
         # won as black/white, the total number of games and the number of
         # epochs the bot has trained for before being evaluated.
@@ -298,35 +291,35 @@ class ZeroBot:
                 2*num_games_won_as_black/num_games, 
                 num_games, self.network.num_epochs()]
     
-    def evaluate_against_rand_bot(self, num_games, 
-                                  num_white_pieces = None, 
-                                  num_black_pieces = None):
+    def evaluate_against_rand_bot(self, num_games,
+                                  moves_to_look_ahead = 0):
         """
         Function to evaluate how good the current bot is against a bot who
         makes random moves.
         """
+        tmp = self.num_rounds
+        self.num_rounds = moves_to_look_ahead
         print('Evaluating against random bot')
-        results = self.evaluate_against_bot(self.rand_bot, num_games,
-                                            num_white_pieces, 
-                                            num_black_pieces)
+        results = self.evaluate_against_bot(self.rand_bot, num_games)
         self.evaluation_history_ran.append(results)
+        self.num_rounds = tmp
         
     def evaluate_against_old_bot(self, num_games,
-                                 num_white_pieces = None, 
-                                 num_black_pieces = None,
+                                 moves_to_look_ahead = 0,
                                  prefix="model_data/old_bot/"):
         """
         Function to evaluate how good the current bot is against an older 
         version of the current bot whoes weights are save under the directory
         given by the parameter 'prefix'. 
         """
+        tmp = self.num_rounds
+        self.num_rounds = moves_to_look_ahead
         print('Evaluating against old bot')
         old_bot = ZeroBot(1)
         old_bot.load_old_bot(prefix)
-        results = self.evaluate_against_bot(old_bot, num_games,
-                                            num_white_pieces, 
-                                            num_black_pieces)
+        results = self.evaluate_against_bot(old_bot, num_games)
         self.evaluation_history_old.append(results)
+        self.num_rounds = tmp
         
     def save_losses(self, loss_history):
         """
@@ -431,8 +424,9 @@ class TreeNode:
         self.parent = parent
         self.last_move = last_move
         
-        # Used when branch stemming from this node is being selected.
-        self.total_visit_count = 0
+        # Used when selecting a branch stemming from this node. The creation 
+        # of the node counts as the first visit so is initialised to 1.
+        self.total_visit_count = 1
         
         self.branches = {}
         for move, prior in priors.items():

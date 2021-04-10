@@ -32,6 +32,7 @@ from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, Flatten
 from keras.layers import LeakyReLU, add
 from keras.models import load_model
+from keras.regularizers import L2
 
 
 class DualNet():
@@ -64,6 +65,8 @@ class DualNet():
         softmax activation. The output of the policy head is a 7x7x24 tensor
         (see Encoder class)
     """
+    # Regularisation constant
+    alpha = 0.005
     
     def __init__(self):
         self.black_model = DualNet.build_model()
@@ -76,7 +79,9 @@ class DualNet():
     def conv_layer(cls, x, filters, kernel_size):
         
         x = Conv2D(filters, kernel_size, use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+                   padding = 'same', activation = 'linear',
+                   kernal_regularizer=L2(cls.aplha),
+                   bias_regularizer=L2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         return x
@@ -86,7 +91,9 @@ class DualNet():
         
         x = DualNet.conv_layer(input_block, filters, kernel_size)
         x = Conv2D(filters, kernel_size, use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+                   padding = 'same', activation = 'linear',
+                   kernal_regularizer=L2(cls.aplha),
+                   bias_regularizer=L2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = add([input_block, x])
         x = LeakyReLU()(x)
@@ -96,12 +103,22 @@ class DualNet():
     def value_head(cls, x):
         
         x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+                   padding = 'same', activation = 'linear',
+                   kernal_regularizer=L2(cls.aplha),
+                   bias_regularizer=L2(cls.alpha))(x)
+        # x = BatchNormalization(axis=1)(x)
+        x = LeakyReLU()(x)
+        x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = True,
+                   padding = 'same', activation = 'linear',
+                   kernal_regularizer=L2(cls.aplha),
+                   bias_regularizer=L2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
         x = Dense(64, use_bias = True, 
-                  activation = 'linear')(x)
+                  activation = 'linear',
+                  kernal_regularizer=L2(cls.aplha),
+                  bias_regularizer=L2(cls.alpha))(x)
         x = LeakyReLU()(x)
         x = Dense(1, use_bias = True, activation = 'tanh', 
                   name = 'value_head')(x)
@@ -110,7 +127,9 @@ class DualNet():
     @classmethod
     def policy_head(cls, x):
         x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+                   padding = 'same', activation = 'linear',
+                   kernal_regularizer=L2(cls.aplha),
+                   bias_regularizer=L2(cls.alpha))(x)
         x = LeakyReLU()(x)
         x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
                    padding = 'same', activation = 'softmax',
@@ -188,7 +207,7 @@ class DualNet():
         for episode in experience:
             
             Xi =  np.array(episode['boards']) 
-            num_moves = Xi.shape[0]
+            # num_moves = Xi.shape[0]
             
             visit_counts = episode['prior_targets']
             policy_targets = self.encoder.encode_priors(visit_counts)
@@ -197,7 +216,7 @@ class DualNet():
             # moves between it and the winning move. Rewards for moves made by 
             # the winning side are positive and negative for the losing side.
             episode_rewards = episode['winner'] * np.array(episode['players'])
-            episode_rewards *= 1*(np.arange(num_moves)-(num_moves-41) > 0)
+            # episode_rewards *= 1*(np.arange(num_moves)-(num_moves-41) > 0)
             
             for n, player in enumerate(episode['players']):
                 if player == -1:

@@ -146,31 +146,34 @@ def play_game(stdscr, black="user", white="user"):
     cursor_x = 0
     cursor_y = 0
     next_move = []
+    bot_to_take_next_turn = False
     game = GameState.new_game()
 
     # Loop to continuely ask the players to select the next move and update
     # the game state until 'q' is pressed to quit the game.
     while (key != ord('q')):
-        # Ask the proper agent what the next move should be.
-        if game.player == 1:
-            if white == "user":
-                tmp = update_user_variables(key, cursor_x, cursor_y, next_move)
-                action, cursor_x, cursor_y, next_move = tmp
-            else:
-                action = white.select_move(game)
+        # Ask the proper agent to select the next move.
+        agent = white if game.player == 1 else black
+        if agent == "user":
+            tmp = update_user_variables(key, cursor_x, cursor_y, next_move)
+            action, cursor_x, cursor_y, next_move = tmp
         else:
-            if black == "user":
-                tmp = update_user_variables(key, cursor_x, cursor_y, next_move)
-                action, cursor_x, cursor_y, next_move = tmp
+            if bot_to_take_next_turn:
+                action = agent.select_move(game)
+                bot_to_take_next_turn = False
             else:
-                action = black.select_move(game)
+                bot_to_take_next_turn = True
+                action = None
         
         # Try make the move and see if it is legal. If not, print
         # why it isn't to the screen and wait the next move to be selected.
         if action:
-            is_not_legal_message = game.take_turn(action)
+            info_message = game.take_turn(action)
+        elif bot_to_take_next_turn:
+            side = "White" if game.player == 1 else "Black"
+            info_message = "{0} is thinking.".format(side)
         else:
-            is_not_legal_message = None
+            info_message = None
         
         # Get the last 6 moves from the game history to print to the screen.
         last_6_moves = []
@@ -185,14 +188,16 @@ def play_game(stdscr, black="user", white="user"):
         draw_game_screen(stdscr, board_pieces, 
                          cursor_x, cursor_y, 
                          game.player, next_move, last_6_moves,
-                         is_not_legal_message)
+                         info_message)
         
         # If the game is over then print a game over message to the screen.
         if not game.is_not_over():
             draw_game_over_banner(stdscr, game.winner)
 
-        # Wait for next input
-        key = stdscr.getch()
+        # Wait for next user input if a bot is not about to be asked to select
+        # a move.
+        if not bot_to_take_next_turn:
+            key = stdscr.getch()
     
     
         

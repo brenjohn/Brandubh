@@ -51,7 +51,7 @@ class MCTSBot:
         added to the tree.
         
         The child node of the root with the best ranking is selected as the
-        next move
+        next move.
     """
     
     def __init__(self, num_rounds=100, temp=1.4):
@@ -71,8 +71,6 @@ class MCTSBot:
         
         # add num_rounds nodes to the tree.
         for i in range(self.num_rounds):
-            # print('\rrunning rollout {0}'.format(i), end='')
-            
             # To add a child node, begin at the root of the tree.
             node = root
             
@@ -97,7 +95,6 @@ class MCTSBot:
          
         # Once 'num_rounds' nodes have been added to the tree, select the 
         # child node of the root with the best ranking as the next move
-        # print('finished rollouts')
         best_move = None
         best_frac = -1
         for child in root.children:
@@ -179,6 +176,8 @@ class MCTSNode:
         """
         index = random.randint(0, len(self.unvisited_moves)-1)
         new_move = self.unvisited_moves.pop(index)
+        # TODO: deepcopy isn't the most efficient thing to do here now that
+        # the GameState contains a linked list storing thegame history.
         new_game_state = copy.deepcopy(self.game_state)
         new_game_state.take_turn(Act.play(new_move))
         new_node = MCTSNode(new_game_state, self, new_move)

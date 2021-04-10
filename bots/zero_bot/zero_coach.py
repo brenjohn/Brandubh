@@ -48,15 +48,15 @@ from zero_training_utils import save_training_data, load_training_data
 from dual_network import DualNet
 
 net = DualNet()
-bot = ZeroBot(7, net)
+bot = ZeroBot(210, net)
 
 bot.network.black_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
                   loss=['categorical_crossentropy', 'mse'],
-                  loss_weights=[1.0, 0.2])
+                  loss_weights=[1.0, 1.0])
 
 bot.network.white_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
                   loss=['categorical_crossentropy', 'mse'],
-                  loss_weights=[1.0, 0.2])
+                  loss_weights=[1.0, 1.0])
 
 
 
@@ -68,23 +68,22 @@ bot.save_as_old_bot()
 # %% train the bot
 import os
 
-num_episodes = 1
-num_cycles = 28
+num_episodes = 7
+num_cycles = 280
 
 moves_limit = 100
+moves_to_look_ahead = 1
 
 for cycle in range(num_cycles):
     
     if (cycle)%14 == 0:
         print('\nEvaluating the bot')
-        bot.evaluate_against_old_bot(1)
-        bot.evaluate_against_rand_bot(1)
+        bot.evaluate_against_old_bot(50, moves_to_look_ahead)
+        bot.evaluate_against_rand_bot(50, moves_to_look_ahead)
     
     print('\nGainning experience, cycle {0}'.format(cycle))
-    eps = 1.0/(1.0 + cycle/14.0)
+    eps = 1.0/(1.0 + cycle/14.0) # parameter for epsilon greedy move selection.
     experience = gain_experience(bot, num_episodes,
-                                 None, 
-                                 None,
                                  moves_limit,
                                  eps)
     
