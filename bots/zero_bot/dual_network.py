@@ -80,7 +80,7 @@ class DualNet():
         
         x = Conv2D(filters, kernel_size, use_bias = True,
                    padding = 'same', activation = 'linear',
-                   kernal_regularizer=L2(cls.aplha),
+                   kernel_regularizer=L2(cls.alpha),
                    bias_regularizer=L2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
@@ -92,7 +92,7 @@ class DualNet():
         x = DualNet.conv_layer(input_block, filters, kernel_size)
         x = Conv2D(filters, kernel_size, use_bias = True,
                    padding = 'same', activation = 'linear',
-                   kernal_regularizer=L2(cls.aplha),
+                   kernel_regularizer=L2(cls.alpha),
                    bias_regularizer=L2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = add([input_block, x])
@@ -104,20 +104,20 @@ class DualNet():
         
         x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = True,
                    padding = 'same', activation = 'linear',
-                   kernal_regularizer=L2(cls.aplha),
+                   kernel_regularizer=L2(cls.alpha),
                    bias_regularizer=L2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = True,
                    padding = 'same', activation = 'linear',
-                   kernal_regularizer=L2(cls.aplha),
+                   kernel_regularizer=L2(cls.alpha),
                    bias_regularizer=L2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
         x = Dense(64, use_bias = True, 
                   activation = 'linear',
-                  kernal_regularizer=L2(cls.aplha),
+                  kernel_regularizer=L2(cls.alpha),
                   bias_regularizer=L2(cls.alpha))(x)
         x = LeakyReLU()(x)
         x = Dense(1, use_bias = True, activation = 'tanh', 
@@ -128,7 +128,7 @@ class DualNet():
     def policy_head(cls, x):
         x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
                    padding = 'same', activation = 'linear',
-                   kernal_regularizer=L2(cls.aplha),
+                   kernel_regularizer=L2(cls.alpha),
                    bias_regularizer=L2(cls.alpha))(x)
         x = LeakyReLU()(x)
         x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,

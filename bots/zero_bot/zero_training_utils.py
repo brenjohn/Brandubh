@@ -84,9 +84,7 @@ def simulate_game(bot, starting_board=None, max_moves=0, eps=0):
     return boards, moves, prior_targets, players, game.winner
 
 
-def gain_experience(bot, num_episodes, max_num_white_pieces = None, 
-                                       max_num_black_pieces = None,
-                                       moves_limit = None,
+def gain_experience(bot, num_episodes, moves_limit = None,
                                        eps = 0):
     """
     A function to repeatedly call the above simulate_game function in order to
@@ -103,23 +101,10 @@ def gain_experience(bot, num_episodes, max_num_white_pieces = None,
         
         # Initialise the current episode as an empty dictionary
         episode = {}
-        
-        # If a maximum number of white and black pieces is provided,
-        # a random starting position for the episode/game is selected, 
-        # otherwise the standard starting position is used.
-        if max_num_black_pieces == None or max_num_white_pieces == None:
-            board = None
-        else:
-            num_white_pieces = random.randint(0, max_num_white_pieces)
-            num_black_pieces = random.randint(1, max_num_black_pieces)
-            message = "The game began with {0} white pieces and {1} black. "
-            print(message.format(num_white_pieces, num_black_pieces),end='')
-            board = random_starting_position(num_white_pieces,
-                                             num_black_pieces)
             
         # Play a game and collect the generated data into the episode 
         # dictionary.
-        game_details = simulate_game(bot, board, moves_limit, eps)
+        game_details = simulate_game(bot, None, moves_limit, eps)
         boards, moves, prior_targets, players, winner = game_details
         
         episode['boards'] = boards
