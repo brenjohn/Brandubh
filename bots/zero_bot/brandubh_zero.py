@@ -10,7 +10,6 @@ the AlphaGo-Zero approach.
 """
 
 import numpy as np
-import copy
 import os
 
 from brandubh import Act, GameState
@@ -112,7 +111,7 @@ class ZeroBot:
             # based on who won.
             if node.state.is_not_over():
                 if next_move:
-                    new_state = copy.deepcopy(node.state)
+                    new_state = node.state.copy()
                     new_state.take_turn_with_no_checks(Act.play(next_move))
                     child_node = self.create_node(new_state, 
                                                   move=next_move, parent=node)
@@ -122,7 +121,7 @@ class ZeroBot:
                     # If the current player can't make any moves from the
                     # selected gamestate then next_move will be 'None' meaning
                     # the player passes the turn.
-                    new_state = copy.deepcopy(node.state)
+                    new_state = node.state.copy()
                     new_state.take_turn_with_no_checks(Act.pass_turn())
                     child_node = self.create_node(new_state, 
                                                   move=next_move, parent=node)

@@ -13,6 +13,7 @@ classes:
     GameState - representing the state of the game for a given board position
 """
 
+# import copy
 
 
 class Act:
@@ -187,6 +188,11 @@ class GameSet:
         """
         self.white_pieces = [key for key, val in self.board.items() if val > 0]
         self.black_pieces = [key for key, val in self.board.items() if val < 0]
+        
+    def copy(self):
+        new_game_set = GameSet()
+        new_game_set.set_board(self.board.copy())
+        return new_game_set
 
 
 
@@ -206,11 +212,14 @@ class GameState:
     when the game is over depending on who wins
     """
 
-    def __init__(self, game_set, player):
+    def __init__(self, game_set, player, winner=0, history=None):
         self.game_set = game_set
         self.player = player
-        self.winner = 0
-        self.history = HistoryLink(game_set.board, player)
+        self.winner = winner
+        if history:
+            self.history = history
+        else:
+            self.history = HistoryLink(game_set.board, player)
 
 
     def take_turn(self, action):
@@ -421,6 +430,16 @@ class GameState:
             historic_state = historic_state.previous_state
         else:
             return None
+        
+
+    def copy(self):
+        """
+        Return a copy of the GameState which can be modified without changing
+        the original.
+        """
+        # game_set = copy.deepcopy(self.game_set)
+        game_set = self.game_set.copy()
+        return GameState(game_set, self.player, self.winner, self.history)
     
 
 

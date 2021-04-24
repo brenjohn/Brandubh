@@ -32,7 +32,8 @@ from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, Flatten
 from keras.layers import LeakyReLU, add
 from keras.models import load_model
-from keras.regularizers import L2
+
+import tensorflow as tf
 
 
 class DualNet():
@@ -71,17 +72,41 @@ class DualNet():
     def __init__(self):
         self.black_model = DualNet.build_model()
         self.white_model = DualNet.build_model()
+        
+        self.compile_lite_models()
+        
         self.encoder = ThreePlaneEncoder()
         self.loss_history_b = []
         self.loss_history_w = []
+        
+    def compile_lite_models(self):
+        converter = tf.lite.TFLiteConverter.from_keras_model(self.black_model)
+        # converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        black_model = converter.convert()
+        self.black_intrp = tf.lite.Interpreter(model_content=black_model)
+        self.black_intrp.allocate_tensors()
+        input_det = self.black_intrp.get_input_details()[0]
+        policy_det, value_det = self.black_intrp.get_output_details()
+        self.black_inp_ind = input_det["index"]
+        self.black_val_ind = value_det["index"]
+        self.black_pol_ind = policy_det["index"]
+        
+        converter = tf.lite.TFLiteConverter.from_keras_model(self.white_model)
+        # converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        white_model = converter.convert()
+        self.white_intrp = tf.lite.Interpreter(model_content=white_model)
+        self.white_intrp.allocate_tensors()
+        input_det = self.white_intrp.get_input_details()[0]
+        policy_det, value_det = self.white_intrp.get_output_details()
+        self.white_inp_ind = input_det["index"]
+        self.white_val_ind = value_det["index"]
+        self.white_pol_ind = policy_det["index"]
         
     @classmethod
     def conv_layer(cls, x, filters, kernel_size):
         
         x = Conv2D(filters, kernel_size, use_bias = True,
-                   padding = 'same', activation = 'linear',
-                   kernel_regularizer=L2(cls.alpha),
-                   bias_regularizer=L2(cls.alpha))(x)
+                   padding = 'same', activation = 'linear')(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         return x
@@ -91,9 +116,7 @@ class DualNet():
         
         x = DualNet.conv_layer(input_block, filters, kernel_size)
         x = Conv2D(filters, kernel_size, use_bias = True,
-                   padding = 'same', activation = 'linear',
-                   kernel_regularizer=L2(cls.alpha),
-                   bias_regularizer=L2(cls.alpha))(x)
+                   padding = 'same', activation = 'linear')(x)
         # x = BatchNormalization(axis=1)(x)
         x = add([input_block, x])
         x = LeakyReLU()(x)
@@ -103,22 +126,16 @@ class DualNet():
     def value_head(cls, x):
         
         x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear',
-                   kernel_regularizer=L2(cls.alpha),
-                   bias_regularizer=L2(cls.alpha))(x)
+                   padding = 'same', activation = 'linear')(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear',
-                   kernel_regularizer=L2(cls.alpha),
-                   bias_regularizer=L2(cls.alpha))(x)
+                   padding = 'same', activation = 'linear')(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
         x = Dense(64, use_bias = True, 
-                  activation = 'linear',
-                  kernel_regularizer=L2(cls.alpha),
-                  bias_regularizer=L2(cls.alpha))(x)
+                  activation = 'linear')(x)
         x = LeakyReLU()(x)
         x = Dense(1, use_bias = True, activation = 'tanh', 
                   name = 'value_head')(x)
@@ -127,9 +144,7 @@ class DualNet():
     @classmethod
     def policy_head(cls, x):
         x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear',
-                   kernel_regularizer=L2(cls.alpha),
-                   bias_regularizer=L2(cls.alpha))(x)
+                   padding = 'same', activation = 'linear')(x)
         x = LeakyReLU()(x)
         x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
                    padding = 'same', activation = 'softmax',
@@ -164,10 +179,17 @@ class DualNet():
         # network's policy output into a dictionary of move-prior pairs
         input_tensor, pieces = self.encoder.encode(game_state, True)
         input_tensor = input_tensor.reshape(1, 7, 7, 3)
+        input_tensor = input_tensor.astype(np.float32)
         if game_state.player == -1:
-            priors, value = self.black_model.predict(input_tensor)
+            self.black_intrp.set_tensor(self.black_inp_ind, input_tensor)
+            self.black_intrp.invoke()
+            priors = self.black_intrp.get_tensor(self.black_pol_ind)
+            value = self.black_intrp.get_tensor(self.black_val_ind)
         else:
-            priors, value = self.white_model.predict(input_tensor)
+            self.white_intrp.set_tensor(self.white_inp_ind, input_tensor)
+            self.white_intrp.invoke()
+            priors = self.white_intrp.get_tensor(self.white_pol_ind)
+            value = self.white_intrp.get_tensor(self.white_val_ind)
         move_priors = self.encoder.decode_policy(priors[0], pieces)
         
         # Normalise the move prior distribution
@@ -250,6 +272,7 @@ class DualNet():
                              batch_size=batch_size, epochs=epochs)
         loss_w = self.white_model.fit(X_w, [Y_w, rewards_w], 
                              batch_size=batch_size, epochs=epochs)
+        self.compile_lite_models()
         return loss_b, loss_w
     
     def save_losses(self, loss_history):

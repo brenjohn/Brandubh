@@ -84,7 +84,7 @@ def simulate_game(bot, starting_board=None, max_moves=0, eps=0):
     return boards, moves, prior_targets, players, game.winner
 
 
-def gain_experience(bot, num_episodes, moves_limit = None,
+def gain_experience(bot, num_episodes, moves_limit = 0,
                                        eps = 0):
     """
     A function to repeatedly call the above simulate_game function in order to
