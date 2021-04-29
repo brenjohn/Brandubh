@@ -208,6 +208,7 @@ class DualNet():
     def load_network(self, prefix="model_data/"):
         self.black_model = load_model(prefix + 'black_model.h5')
         self.white_model = load_model(prefix + 'black_model.h5')
+        self.compile_lite_models()
         
     def num_epochs(self):
         return len(self.loss_history_w)
@@ -272,7 +273,7 @@ class DualNet():
                              batch_size=batch_size, epochs=epochs)
         loss_w = self.white_model.fit(X_w, [Y_w, rewards_w], 
                              batch_size=batch_size, epochs=epochs)
-        self.compile_lite_models()
+        self.compile_lite_model()
         return loss_b, loss_w
     
     def save_losses(self, loss_history):
@@ -326,10 +327,12 @@ class ThreePlaneEncoder():
         
         for (r, c) in game_state.game_set.white_pieces:
             piece = game_state.game_set.board[(r, c)]
-            exec(self.convert_to_tensor_element[piece])
+            board_tensor[r,c,piece-1] = 1
+            # exec(self.convert_to_tensor_element[piece])
             
         for (r, c) in game_state.game_set.black_pieces:
-            exec(self.convert_to_tensor_element[-1])
+            board_tensor[r,c,2] = 1
+            # exec(self.convert_to_tensor_element[-1])
         
         if return_pieces:
             return board_tensor, pieces

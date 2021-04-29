@@ -32,6 +32,9 @@ from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, Flatten
 from keras.layers import LeakyReLU, add
 from keras.models import load_model
+from keras.regularizers import l2
+
+import tensorflow as tf
 
 
 class ZeroNet():
@@ -64,17 +67,34 @@ class ZeroNet():
         softmax activation. The output of the policy head is a 7x7x24 tensor
         (see Encoder class)
     """
+    alpha = 0.0001
     
     def __init__(self):
         self.model = ZeroNet.build_model()
+        self.compile_lite_model()
         self.encoder = SixPlaneEncoder()
         self.loss_history = []
+        
+    def compile_lite_model(self):
+        converter = tf.lite.TFLiteConverter.from_keras_model(self.model)
+        # converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        lite_model = converter.convert()
+        self.intrp = tf.lite.Interpreter(model_content=lite_model)
+        self.intrp.allocate_tensors()
+        input_det = self.intrp.get_input_details()[0]
+        policy_det, value_det = self.intrp.get_output_details()
+        self.inp_ind = input_det["index"]
+        self.val_ind = value_det["index"]
+        self.pol_ind = policy_det["index"]
         
     @classmethod
     def conv_layer(cls, x, filters, kernel_size):
         
         x = Conv2D(filters, kernel_size, use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+                   padding = 'same', 
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         return x
@@ -84,7 +104,10 @@ class ZeroNet():
         
         x = ZeroNet.conv_layer(input_block, filters, kernel_size)
         x = Conv2D(filters, kernel_size, use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+                   padding = 'same', 
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = add([input_block, x])
         x = LeakyReLU()(x)
@@ -93,13 +116,23 @@ class ZeroNet():
     @classmethod
     def value_head(cls, x):
         
-        x = Conv2D(filters = 32, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+        x = Conv2D(filters = 35, kernel_size = (3, 3), use_bias = True,
+                   padding = 'same', 
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
-        x = Dense(64, use_bias = True, 
-                  activation = 'linear')(x)
+        x = Dense(70, use_bias = True, 
+                  activation = 'linear',
+                  bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
+        x = LeakyReLU()(x)
+        x = Dense(35, use_bias = True, 
+                  activation = 'linear',
+                  bias_regularizer = l2(cls.alpha),
+                  kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
         x = Dense(1, use_bias = True, activation = 'tanh', 
                   name = 'value_head')(x)
@@ -107,8 +140,11 @@ class ZeroNet():
     
     @classmethod
     def policy_head(cls, x):
-        x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+        x = Conv2D(filters = 28, kernel_size = (3, 3), use_bias = True,
+                   padding = 'same', 
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
         x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
                    padding = 'same', activation = 'softmax',
@@ -122,9 +158,9 @@ class ZeroNet():
         """
         board_input = Input(shape=(7,7,6), name='board_input')
         
-        processed_board = ZeroNet.conv_layer(board_input, 64, (3, 3))
+        processed_board = ZeroNet.conv_layer(board_input, 28, (3, 3))
         for i in range(7):
-            processed_board = ZeroNet.residual_layer(processed_board, 64, (3, 3))
+            processed_board = ZeroNet.residual_layer(processed_board, 28, (3, 3))
             
         value_output = ZeroNet.value_head(processed_board)
         policy_output = ZeroNet.policy_head(processed_board)
@@ -142,7 +178,17 @@ class ZeroNet():
         # network. Then get the network to make the prediction and decode the
         # network's policy output into a dictionary of move-prior pairs
         input_tensor, pieces = self.encoder.encode(game_state, True)
-        priors, value = self.model.predict(input_tensor.reshape(1, 7, 7, 6))
+        
+        input_tensor = input_tensor.reshape(1, 7, 7, 6)
+        input_tensor = input_tensor.astype(np.float32)
+        
+        self.intrp.set_tensor(self.inp_ind, input_tensor)
+        self.intrp.invoke()
+        priors = self.intrp.get_tensor(self.pol_ind)
+        value = self.intrp.get_tensor(self.val_ind)
+        
+        # priors, value = self.model.predict(input_tensor.reshape(1, 7, 7, 6))
+        
         move_priors = self.encoder.decode_policy(priors[0], pieces)
         
         # Normalise the move prior distribution
@@ -159,11 +205,14 @@ class ZeroNet():
         
     def load_network(self, prefix="model_data/"):
         self.model = load_model(prefix + 'zero_model.h5')
+        self.compile_lite_model()
         
     def train(self, training_data, batch_size, epochs):
         X, Y, rewards = training_data
-        return self.model.fit(X, [Y, rewards], 
+        loss = self.model.fit(X, [Y, rewards], 
                               batch_size=batch_size, epochs=epochs)
+        self.compile_lite_model()
+        return loss
     
     def save_losses(self, loss_history):
         """
@@ -230,13 +279,6 @@ class SixPlaneEncoder():
     training data), and for expanding a training data set using symmetries of
     the game board.
     """
-    def __init__(self):
-        self.convert_to_tensor_element = {1: 'board_tensor[r,c,0] = 1',
-                                          2: 'board_tensor[r,c,0] = 1;' +
-                                             'board_tensor[r,c,1] = 1',
-                                         -1: 'board_tensor[r,c,2] = 1',
-                                         -2: 'board_tensor[r,c,2] = 1;' +
-                                             'board_tensor[r,c,3] = 1'}
         
     def encode(self, game_state, return_pieces=False):
         """
@@ -274,10 +316,12 @@ class SixPlaneEncoder():
         
         for (r, c) in game_state.game_set.white_pieces:
             piece = game_state.game_set.board[(r, c)]
-            exec(self.convert_to_tensor_element[piece*player])
+            board_tensor[r,c,1 - player] = 1
+            if piece == 2:
+                board_tensor[r,c,2 - player] = 1
             
         for (r, c) in game_state.game_set.black_pieces:
-            exec(self.convert_to_tensor_element[-1*player])
+            board_tensor[r,c,1 + player] = 1
         
         if return_pieces:
             return board_tensor, pieces

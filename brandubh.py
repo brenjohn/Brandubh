@@ -117,11 +117,11 @@ class GameSet:
         self.board[final_point] = piece
         self.board[initial_point] = 0
         if piece > 0:
-            self.white_pieces.remove(initial_point)
-            self.white_pieces.append(final_point)
+            i = self.white_pieces.index(initial_point)
+            self.white_pieces[i] = final_point
         else:
-            self.black_pieces.remove(initial_point)
-            self.black_pieces.append(final_point)
+            i = self.black_pieces.index(initial_point)
+            self.black_pieces[i] = final_point
 
         # check for captured enemy pieces and remove them
         for neighbour in self.neighbours:
