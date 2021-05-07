@@ -12,6 +12,9 @@ import sys
 sys.path.append("..")
 sys.path.append("../..")
 
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 import keras
 
 from brandubh_zero import ZeroBot
@@ -33,14 +36,14 @@ from zero_training_utils import save_training_data, load_training_data
 
 
 # %% .
-# from zero_network import ZeroNet
+from zero_network import ZeroNet
 
-# net = ZeroNet()
-# bot = ZeroBot(50, net)
+net = ZeroNet()
+bot = ZeroBot(70, net)
 
-# bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
-#                   loss=['categorical_crossentropy', 'mse'],
-#                   loss_weights=[1.0, 1.0])
+bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=0.000002),
+                  loss=['categorical_crossentropy', 'mse'],
+                  loss_weights=[1.0, 0.1])
 
 
 
@@ -68,7 +71,7 @@ bot.save_as_old_bot()
 # %% train the bot
 import os
 
-num_episodes = 7
+num_episodes = 21
 num_cycles = 280
 
 moves_limit = 100
@@ -78,8 +81,11 @@ for cycle in range(num_cycles):
     
     if (cycle)%14 == 0:
         print('\nEvaluating the bot')
-        bot.evaluate_against_old_bot(50, moves_to_look_ahead)
-        bot.evaluate_against_rand_bot(50, moves_to_look_ahead)
+        alpha_tmp = bot.alpha
+        bot.alpha = 0
+        bot.evaluate_against_old_bot(350, moves_to_look_ahead)
+        bot.evaluate_against_rand_bot(350, moves_to_look_ahead)
+        bot.alpha = alpha_tmp
     
     print('\nGainning experience, cycle {0}'.format(cycle))
     eps = 1.0/(1.0 + cycle/14.0) # parameter for epsilon greedy move selection.
@@ -142,3 +148,36 @@ bot.save_bot()
 
 # %%
 bot.load_bot()
+
+# %%
+previous_bot = ZeroBot(1, net)
+moves_to_look_ahead = 1
+num_games = 350
+
+scores = []
+evaluations = []
+
+for i in range(280):
+    previous_bot.load_bot("model_data/model_{0}_data/".format(i))
+    previous_bot.alpha = 0.0
+    previous_bot.evaluate_against_rand_bot(num_games, moves_to_look_ahead)
+    scores.append(previous_bot.evaluation_history_ran[-1][0])
+    evaluations.append(previous_bot.evaluation_history_ran[-1])
+    
+# %%
+N = 14
+averaged_score = [sum([scores[i+j] for j in range(N)])/N for i in range(len(scores)-N)]
+
+fig = plt.figure()
+plt.plot(scores, label="Ave. score from {0} games".format(num_games),
+         color='grey',
+         linewidth=0.7)
+plt.plot(range(N//2), len(scores)-N//2, averaged_score,
+         label='Moving average N = {0}'.format(N),
+         linewidth=4)
+plt.title("ZeroBot evaluation against RandBot with 0 look-a-head")
+plt.xlabel("Number of cycles")
+plt.ylabel("Score")
+plt.legend()
+
+fig.savefig('ZeroBot_moving_ave_N14_evaluation.png', dpi=300)

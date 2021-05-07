@@ -35,6 +35,9 @@ from keras.models import load_model
 from keras.regularizers import l2
 
 import tensorflow as tf
+tf.get_logger().setLevel('ERROR')
+tf.autograph.set_verbosity(0)
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 
 class ZeroNet():
@@ -67,7 +70,7 @@ class ZeroNet():
         softmax activation. The output of the policy head is a 7x7x24 tensor
         (see Encoder class)
     """
-    alpha = 0.0001
+    alpha = 0.0000
     
     def __init__(self):
         self.model = ZeroNet.build_model()
@@ -350,7 +353,6 @@ class SixPlaneEncoder():
         """
         move_priors = {}
         for (xi, yi) in pieces:
-            
             for i, yf in enumerate(range(yi-1, -1, -1)):
                 move_priors[(xi, yi, xi, yf)] = model_output[xi, yi, i]
                 
@@ -389,7 +391,6 @@ class SixPlaneEncoder():
         return np.reshape(encoded_priors, (num_moves, 7, 7, 24))
     
     def expand_data(self, X, Y):
-        
         X_temp = copy.copy(X)
         Y_temp = copy.copy(Y)
         
