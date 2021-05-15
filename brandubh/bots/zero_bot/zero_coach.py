@@ -36,7 +36,7 @@ from zero_training_utils import save_training_data, load_training_data
 
 
 # %% .
-from zero_network import ZeroNet
+from networks.zero_network import ZeroNet
 
 net = ZeroNet()
 bot = ZeroBot(70, net)
@@ -48,7 +48,7 @@ bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=0.000002),
 
 
 # %% .
-from dual_network import DualNet
+from networks.dual_network import DualNet
 
 net = DualNet()
 bot = ZeroBot(210, net)

@@ -12,7 +12,7 @@ These functions draw and print to a curses standard screen (stdscr).
 """
 
 import curses
-import utils
+from . import utils
 
 # Declaration of constants used to draw different screens of the game.
 TITLE_LINES = utils.TITLE.split("\n")

@@ -17,8 +17,12 @@ functions imported from 'brandubh_view.py' to render information on it.
 import curses
 
 from brandubh import GameState, Act
-from brandubh_view import init_view, draw_main_menu, draw_game_screen
-from brandubh_view import draw_player_selection_screen, draw_game_over_banner
+
+from UI_utils.brandubh_view import init_view, draw_main_menu
+from UI_utils.brandubh_view import draw_player_selection_screen
+from UI_utils.brandubh_view import draw_game_screen, draw_game_over_banner
+
+
 from bots.random_bot import RandomBot
 from bots.mcbot import MCTSBot
 

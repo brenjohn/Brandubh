@@ -9,7 +9,7 @@ up and playing a game of brandubh.
 """
 
 import time
-import utils
+import UI_utils.utils as utils
 import os
 
 from brandubh import GameState
@@ -26,7 +26,7 @@ def create_a_zero_bot():
     brandubh.
     """
     bot = ZeroBot()
-    if os.path.exists("bots/zero_bot/model_data/"):
+    if os.path.exists("bots/zero_bot/model_data/model_attributes.npy"):
         bot.load_bot("bots/zero_bot/model_data/")
     else:
         bot.network = ZeroNet()

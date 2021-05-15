@@ -13,8 +13,6 @@ classes:
     GameState - representing the state of the game for a given board position
 """
 
-# import copy
-
 
 class Act:
     """
@@ -347,7 +345,7 @@ class GameState:
             else:
                 valid_move = True
 
-        if yi == yf:
+        elif yi == yf:
             increment = 1 if xi-xf > 0 else -1
             for i in range(xf, xi, increment):
                 if game_set.board[(i, yf)] != 0:
