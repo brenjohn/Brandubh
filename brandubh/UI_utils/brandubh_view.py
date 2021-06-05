@@ -25,6 +25,7 @@ GAME_PIECES = {-1 : " X ",
 
 PLAYERS = [" User ",
            " Rand ",
+           " GRand",
            " MCBot"]
 
 OPTIONS = ["   Play a game   ",
@@ -33,6 +34,7 @@ OPTIONS = ["   Play a game   ",
 
 PLAYER_DESCRIPTIONS = ["- Moves are selected by the user.",
                        "- A bot to randomly select moves.",
+                       "- A greedy random bot.",
                        "- A Monte Carlo tree search bot."]
 
 

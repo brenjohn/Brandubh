@@ -25,11 +25,13 @@ from UI_utils.brandubh_view import draw_game_screen, draw_game_over_banner
 
 from bots.random_bot import RandomBot
 from bots.mcbot import MCTSBot
+from bots.greedy_random_bot import GreedyRandomBot
 
 
 # The bots that can be selected to play a game of brandubh.
 PLAYERS = ["user",
            RandomBot,
+           GreedyRandomBot,
            MCTSBot]
 
 
@@ -115,9 +117,9 @@ def select_players(stdscr):
         # Else if the user with the up or down arrow keys, increment the 
         # the current option.
         elif key == curses.KEY_DOWN:
-            option = (option + 1)%3
+            option = (option + 1)%4
         elif key == curses.KEY_UP:
-            option = (option - 1)%3
+            option = (option - 1)%4
         
         # Draw the main menu with the current option highlighted.
         draw_player_selection_screen(stdscr, players, option)
