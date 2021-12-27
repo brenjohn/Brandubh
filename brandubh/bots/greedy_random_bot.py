@@ -16,6 +16,7 @@ class GreedyRandomBot:
     This bot looks at all legal moves it can make and randomly chooses a move
     that results in a win. If no so move exists a random move is selected.
     """
+    is_trainable = False
     
     def select_move(self, game_state):
         """Choose a random valid move."""

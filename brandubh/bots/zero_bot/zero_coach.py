@@ -13,13 +13,14 @@ sys.path.append("..")
 sys.path.append("../..")
 
 import os
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import keras
 
 from brandubh_zero import ZeroBot
-from zero_training_utils import gain_experience
-from zero_training_utils import save_training_data, load_training_data
+from greedy_random_bot import GreedyRandomBot
+from training_utils import gain_experience, save_training_data, competition
 
 
 
@@ -39,12 +40,15 @@ from zero_training_utils import save_training_data, load_training_data
 from networks.zero_network import ZeroNet
 
 net = ZeroNet()
-bot = ZeroBot(70, net)
+bot = ZeroBot(280, net)
 
-bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=0.000002),
-                  loss=['categorical_crossentropy', 'mse'],
-                  loss_weights=[1.0, 0.1])
-
+def compile_bot(bot, lr):
+    bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=lr),
+                              loss=['categorical_crossentropy', 'mse'],
+                              loss_weights=[1.0, 1.0])
+    
+    
+compile_bot(bot, 0.000001)
 
 
 # %% .
@@ -71,27 +75,33 @@ bot.save_as_old_bot()
 # %% train the bot
 import os
 
-num_episodes = 21
-num_cycles = 280
+num_episodes = 14
+num_cycles = 70
 
-moves_limit = 100
+move_limit = 140
 moves_to_look_ahead = 1
+
+gr_bot = GreedyRandomBot()
 
 for cycle in range(num_cycles):
     
-    if (cycle)%14 == 0:
+    if (cycle)%1 == 0:
         print('\nEvaluating the bot')
         alpha_tmp = bot.alpha
         bot.alpha = 0
-        bot.evaluate_against_old_bot(350, moves_to_look_ahead)
+        #bot.evaluate_against_old_bot(350, moves_to_look_ahead)
         bot.evaluate_against_rand_bot(350, moves_to_look_ahead)
         bot.alpha = alpha_tmp
     
     print('\nGainning experience, cycle {0}'.format(cycle))
-    eps = 1.0/(1.0 + cycle/14.0) # parameter for epsilon greedy move selection.
-    experience = gain_experience(bot, num_episodes,
-                                 moves_limit,
-                                 eps)
+    eps = 1.0/(1.0 + (cycle+7)/7.0) # parameter for epsilon greedy selection.
+    self_play_exp = gain_experience(bot, bot, num_episodes, move_limit, eps)
+    # grand_wht_exp = gain_experience(gr_bot, bot, num_episodes, move_limit, 0)
+    # grand_blk_exp = gain_experience(bot, gr_bot, num_episodes, move_limit, 0)
+    # experience = self_play_exp + grand_wht_exp + grand_blk_exp
+    # experience = grand_wht_exp + grand_blk_exp
+    experience = self_play_exp
+    # experience = grand_wht_exp
     
     print('Preparing training data')
     # Add the generated experience to the bank of training data and load all
@@ -102,27 +112,103 @@ for cycle in range(num_cycles):
     print('\nTraining network, cycle {0}'.format(cycle))
     losses = bot.network.train(training_data, batch_size=256, epochs=1)
     bot.network.save_losses(losses)
+    
+    lr = 0.00001/(1.0 + (cycle+1)/0.7)
+    compile_bot(bot, lr)
     bot.save_bot("model_data/model_{0}_data/".format(cycle))
         
+    
+    
+
+# %% .
+from networks.zero_network import ZeroNet
+
+def compile_bot(bot, lr):
+    bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=lr),
+                              loss=['categorical_crossentropy', 'mse'],
+                              loss_weights=[1.0, 0.1])
+    
+net = ZeroNet()
+bot_a = ZeroBot(350, net)
+compile_bot(bot_a, 0.000001)
+
+net = ZeroNet()
+bot_b = ZeroBot(350, net)
+compile_bot(bot_b, 0.000001)
+
+print('Evaulating student and teacher bots')
+# bot_a.turn_off_look_a_head(); bot_b.turn_off_look_a_head()
+winner = competition(bot_a, bot_b, num_games=100)
+# bot_a.turn_on_look_a_head(); bot_b.turn_on_look_a_head()
+if winner is bot_a:
+    teacher_bot, student_bot = bot_a, bot_b
+else:
+    teacher_bot, student_bot = bot_b, bot_a
+    
+    
+student_bot.save_bot("model_data/student_model_{0}_data/".format(-1))
+teacher_bot.save_bot("model_data/teacher_model_{0}_data/".format(-1))
+
+teacher_bot.evaluate_against_rand_bot(350, 1)
+
+
+# %% train the bot
+import os
+
+num_episodes = 70
+num_cycles = 70
+
+move_limit = 140
+
+
+for cycle in range(num_cycles):
+    
+    print('\nGainning experience, cycle {0}'.format(cycle))
+    eps = 1.0/(1.0 + (cycle+14)/7.0) # parameter for epsilon greedy selection.
+    experience = gain_experience(teacher_bot, teacher_bot, num_episodes, move_limit, 0)
+    
+    print('Preparing training data')
+    # Add the generated experience to the bank of training data and load all
+    # training data
+    training_data = student_bot.network.create_training_data(experience)
+    # save_training_data(training_data, cycle)
+    
+    print('\nTraining network, cycle {0}'.format(cycle))
+    losses = student_bot.network.train(training_data, batch_size=256, epochs=2)
+    student_bot.network.save_losses(losses)
+    
+    # lr = 0.00001/(1.0 + (cycle+1)/0.7)
+    # compile_bot(bot, 0.000002)
+    student_bot.save_bot("model_data/student_model_{0}_data/".format(cycle))
+    
+    print('Evaluating student and teacher bots')
+    # student_bot.turn_off_look_a_head(); teacher_bot.turn_off_look_a_head()
+    winner = competition(student_bot, teacher_bot, num_games=100, moves_limit=140, threshold=10)
+    # student_bot.turn_on_look_a_head(); teacher_bot.turn_on_look_a_head()
+    if winner is student_bot:
+        print('And the student becomes the teacher')
+        teacher_bot, student_bot = student_bot, teacher_bot
+        teacher_bot.save_bot("model_data/teacher_model_{0}_data/".format(cycle))
+        teacher_bot.evaluate_against_rand_bot(350, 1)
     
     
     
 # %% plot history
 import matplotlib.pyplot as plt
 
-score_old = [evaluation[0] for evaluation in bot.evaluation_history_old]
+# score_old = [evaluation[0] for evaluation in bot.evaluation_history_old]
 score_ran = [evaluation[0] for evaluation in bot.evaluation_history_ran]
 
-old_err = [((1-evaluation[0]**2)/evaluation[3])**0.5 
-           for evaluation in bot.evaluation_history_old]
+# old_err = [((1-evaluation[0]**2)/evaluation[3])**0.5 
+#            for evaluation in bot.evaluation_history_old]
 
 ran_err = [((1-evaluation[0]**2)/evaluation[3])**0.5 
            for evaluation in bot.evaluation_history_ran]
 
-num_games = [evaluation[4] for evaluation in bot.evaluation_history_old]
+num_games = [evaluation[4] for evaluation in bot.evaluation_history_ran]
 
-plt.errorbar(num_games, score_old, old_err, 
-             label="Initial zero bot")
+# plt.errorbar(num_games, score_old, old_err, 
+#              label="Initial zero bot")
 
 plt.errorbar(num_games, score_ran, ran_err,
              label="random bot")
@@ -150,15 +236,16 @@ bot.save_bot()
 bot.load_bot()
 
 # %%
-previous_bot = ZeroBot(1, net)
+# previous_bot = ZeroBot(1, net)
+previous_bot = student_bot
 moves_to_look_ahead = 1
 num_games = 350
 
 scores = []
 evaluations = []
 
-for i in range(280):
-    previous_bot.load_bot("model_data/model_{0}_data/".format(i))
+for i in range(-1, 15):
+    previous_bot.load_bot("model_data/student_model_{0}_data/".format(i))
     previous_bot.alpha = 0.0
     previous_bot.evaluate_against_rand_bot(num_games, moves_to_look_ahead)
     scores.append(previous_bot.evaluation_history_ran[-1][0])

@@ -16,7 +16,7 @@ from brandubh import GameState
 
 
 
-def simulate_game(bot, starting_board=None, max_moves=0, eps=0):
+def simulate_game(white, black, starting_board=None, max_moves=0, eps=0):
     """
     A function to get the provided bot to play a single game of brandubh
     against itself in order to generate training data for the bot.
@@ -39,8 +39,6 @@ def simulate_game(bot, starting_board=None, max_moves=0, eps=0):
     The game will start from the given starting position if one is provided.
     The game will end in a draw if the number of moves exceeds 'max_moves'.
     If 'max_moves' is zero, the game will continue until there is a winner.
-    
-    TODO: moves no longer need to be recorded to create training data.
     """
     
     if starting_board:
@@ -56,21 +54,25 @@ def simulate_game(bot, starting_board=None, max_moves=0, eps=0):
         num_moves = 0
     
     while game.is_not_over() and num_moves < max_moves:
+        bot = black if game.player == -1 else white
         # Get the bot to pick the next move and get the distribution of visits.
-        action, visit_counts = bot.select_move(game, 
-                                               return_visit_counts=True)
-        
-        if np.random.rand() < eps:
-            action = bot.rand_bot.select_move(game)
-        
-        if action.is_play:
-            # Encode and record the game-state as well as the visit counts and
-            # the player that made the move.
-            board_tensor = bot.network.encoder.encode(game)
-            boards.append(board_tensor)
-            moves.append(action.move)
-            prior_targets.append(visit_counts)
-            players.append(game.player)
+        if bot.is_trainable:
+            action, visit_counts = bot.select_move(game, 
+                                                   return_visit_counts=True)
+            
+            if np.random.rand() < eps:
+                action = bot.rand_bot.select_move(game)
+            
+            if action.is_play:
+                # Encode and record the game-state as well as the visit counts and
+                # the player that made the move.
+                board_tensor = bot.network.encoder.encode(game)
+                boards.append(board_tensor)
+                moves.append(action.move)
+                prior_targets.append(visit_counts)
+                players.append(game.player)
+        else:
+            action = bot.select_move(game)
             
         # Make the move. The select_move method should always return a legal
         # move.
@@ -84,8 +86,7 @@ def simulate_game(bot, starting_board=None, max_moves=0, eps=0):
     return boards, moves, prior_targets, players, game.winner
 
 
-def gain_experience(bot, num_episodes, moves_limit = 0,
-                                       eps = 0):
+def gain_experience(white, black, num_episodes, moves_limit = 0, eps = 0):
     """
     A function to repeatedly call the above simulate_game function in order to
     create a data set of games to train a ZeroBot on.
@@ -93,18 +94,18 @@ def gain_experience(bot, num_episodes, moves_limit = 0,
     The data from each game is stored in an 'episode' dictionary and all 
     episodes are collected into a list called 'experience' to be returned.
     """
-    
     experience = []
+    w = 0; b = 0
     
     for i in range(num_episodes):
-        print('\rPlaying game {0}. '.format(i),end='')
+        print('\rPlaying game {0}. Wins - w:{1} b:{2}'.format(i, w, b), end='')
         
         # Initialise the current episode as an empty dictionary
         episode = {}
             
         # Play a game and collect the generated data into the episode 
         # dictionary.
-        game_details = simulate_game(bot, None, moves_limit, eps)
+        game_details = simulate_game(white, black, None, moves_limit, eps)
         boards, moves, prior_targets, players, winner = game_details
         
         episode['boards'] = boards
@@ -112,6 +113,11 @@ def gain_experience(bot, num_episodes, moves_limit = 0,
         episode['prior_targets'] = prior_targets
         episode['players'] = players
         episode['winner'] = winner
+        
+        if winner == 1: 
+            w += 1
+        elif winner == -1:
+            b += 1
         
         experience.append(episode)
     

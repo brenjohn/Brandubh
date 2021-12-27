@@ -14,6 +14,7 @@ import random
 import copy
 from brandubh import Act
 from .random_bot import RandomBot
+from .greedy_random_bot import GreedyRandomBot
 
 
 class MCTSBot:
@@ -53,11 +54,15 @@ class MCTSBot:
         The child node of the root with the best ranking is selected as the
         next move.
     """
+    is_trainable = False
     
-    def __init__(self, num_rounds=100, temp=1.4):
+    def __init__(self, num_rounds=100, temp=1.4, use_greedy_rand=False):
         self.num_rounds = num_rounds
         self.temperature = temp
-        self.bot = RandomBot()
+        if use_greedy_rand:
+            self.bot = GreedyRandomBot()
+        else:
+            self.bot = RandomBot()
     
     
     def select_move(self, game_state):

@@ -70,7 +70,7 @@ class ZeroNet():
         softmax activation. The output of the policy head is a 7x7x24 tensor
         (see Encoder class)
     """
-    alpha = 0.0000
+    alpha = 0.0001
     
     def __init__(self):
         self.model = ZeroNet.build_model()
@@ -161,9 +161,9 @@ class ZeroNet():
         """
         board_input = Input(shape=(7,7,6), name='board_input')
         
-        processed_board = ZeroNet.conv_layer(board_input, 28, (3, 3))
+        processed_board = ZeroNet.conv_layer(board_input, 70, (3, 3))
         for i in range(7):
-            processed_board = ZeroNet.residual_layer(processed_board, 28, (3, 3))
+            processed_board = ZeroNet.residual_layer(processed_board, 70, (3, 3))
             
         value_output = ZeroNet.value_head(processed_board)
         policy_output = ZeroNet.policy_head(processed_board)
@@ -254,8 +254,8 @@ class ZeroNet():
             # moves between it and the winning move. Rewards for moves made by 
             # the winning side are positive and negative for the losing side.
             episode_rewards = episode['winner'] * np.array(episode['players'])
-            episode_rewards = (np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
-                                     )) * episode_rewards
+            # episode_rewards = (np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
+            #                          )) * episode_rewards
             
             rewards.append( episode_rewards )
             

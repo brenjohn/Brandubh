@@ -52,6 +52,7 @@ class ZeroBot:
         rand_bot   - A bot that makes random moves. Used for evaluating bot
                      performance after training.
     """
+    is_trainable = True
     
     def __init__(self, num_rounds=10, network=None):
         self.num_rounds = num_rounds
@@ -226,6 +227,16 @@ class ZeroBot:
             # If moves is empty then no legal moves can be made from the game
             # state corresponding to the given node.
             return None
+        
+    def turn_off_look_a_head(self):
+        self.num_rounds_tmp = self.num_rounds
+        self.alpha_tmp = self.alpha
+        self.num_rounds = 1
+        self.alpha = 0.0
+        
+    def turn_on_look_a_head(self):
+        self.num_rounds = self.num_rounds_tmp
+        self.alpha = self.alpha_tmp
     
     def evaluate_against_bot(self, opponent_bot, num_games,
                              max_num_of_turns = 1000):

@@ -16,6 +16,7 @@ class RandomBot:
     This is a bot that will play a random move in brandubh when asked to
     make a move
     """
+    is_trainable = False
     
     def select_move(self, game_state):
         """Choose a random valid move."""
