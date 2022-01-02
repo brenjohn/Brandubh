@@ -30,9 +30,10 @@ import copy
 
 from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, Flatten
-from keras.layers import LeakyReLU, add
+from keras.layers import LeakyReLU, add, Softmax, Reshape
 from keras.models import load_model
 from keras.regularizers import l2
+from keras.callbacks import EarlyStopping, LearningRateScheduler
 
 import tensorflow as tf
 tf.get_logger().setLevel('ERROR')
@@ -77,6 +78,12 @@ class ZeroNet():
         self.compile_lite_model()
         self.encoder = SixPlaneEncoder()
         self.loss_history = []
+        self.training_rounds = 0
+        
+        self.stop_criteria = EarlyStopping(monitor="loss",
+                                           patience=7,
+                                           mode="min",
+                                           restore_best_weights=True)
         
     def compile_lite_model(self):
         converter = tf.lite.TFLiteConverter.from_keras_model(self.model)
@@ -104,9 +111,10 @@ class ZeroNet():
     
     @classmethod
     def residual_layer(cls, input_block, filters, kernel_size):
+        biases = True
         
         x = ZeroNet.conv_layer(input_block, filters, kernel_size)
-        x = Conv2D(filters, kernel_size, use_bias = True,
+        x = Conv2D(filters, kernel_size, use_bias = biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -118,8 +126,8 @@ class ZeroNet():
     
     @classmethod
     def value_head(cls, x):
-        
-        x = Conv2D(filters = 35, kernel_size = (3, 3), use_bias = True,
+        biases = True
+        x = Conv2D(filters = 21, kernel_size = (1, 1), use_bias = True,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -127,31 +135,40 @@ class ZeroNet():
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
-        x = Dense(70, use_bias = True, 
+        x = Dense(14, use_bias = biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                    kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Dense(35, use_bias = True, 
+        x = Dense(7, use_bias = biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                   kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Dense(1, use_bias = True, activation = 'tanh', 
+        x = Dense(1, use_bias = biases, activation = 'tanh', 
                   name = 'value_head')(x)
         return x
     
     @classmethod
     def policy_head(cls, x):
-        x = Conv2D(filters = 28, kernel_size = (3, 3), use_bias = True,
+        biases = True
+        x = Conv2D(filters = 70, kernel_size = (3, 3), use_bias = biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
                    kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'softmax',
-                   name = 'policy_head')(x)
+        
+        x = Conv2D(filters = 24, kernel_size = (1, 1), use_bias = biases,
+                   padding = 'same', 
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
+        # x = LeakyReLU()(x)
+        
+        x = Reshape(target_shape = (-1,))(x)
+        x = Softmax()(x)
+        x = Reshape(target_shape = (7, 7, 24), name='policy_head')(x)
         return x
     
     @classmethod
@@ -161,12 +178,12 @@ class ZeroNet():
         """
         board_input = Input(shape=(7,7,6), name='board_input')
         
-        processed_board = ZeroNet.conv_layer(board_input, 70, (3, 3))
+        processed_board = ZeroNet.conv_layer(board_input, 28, (3, 3))
         for i in range(7):
-            processed_board = ZeroNet.residual_layer(processed_board, 70, (3, 3))
+            processed_board = ZeroNet.residual_layer(processed_board, 28, (3, 3))
             
-        value_output = ZeroNet.value_head(processed_board)
         policy_output = ZeroNet.policy_head(processed_board)
+        value_output = ZeroNet.value_head(processed_board)
         
         model = Model(inputs=board_input, 
                       outputs=[policy_output, value_output])
@@ -200,6 +217,26 @@ class ZeroNet():
             move_priors[move] = prior/N
         return move_priors, value[0][0]
     
+    def print_prediction(self, input_tensor):
+        """
+        This method uses the neural network to predict the value of a board 
+        position and the prior distribution over possible next moves.
+        """
+        
+        input_tensor = input_tensor.reshape(1, 7, 7, 6)
+        input_tensor = input_tensor.astype(np.float32)
+        
+        self.intrp.set_tensor(self.inp_ind, input_tensor)
+        self.intrp.invoke()
+        priors = self.intrp.get_tensor(self.pol_ind)
+        value = self.intrp.get_tensor(self.val_ind)
+        
+        header = "##########- input tensor ~##########"
+        print_tensor(input_tensor, header)
+        
+        header = "##########- output tensor - value-head = {0} ~##########".format(value)
+        print_tensor(priors, header)
+    
     def save_network(self, prefix="model_data/"):
         self.model.save(prefix + 'zero_model.h5')
         load_command = "from bots.zero_bot.zero_network import ZeroNet; "
@@ -210,20 +247,36 @@ class ZeroNet():
         self.model = load_model(prefix + 'zero_model.h5')
         self.compile_lite_model()
         
-    def train(self, training_data, batch_size, epochs):
+    def train(self, training_data, batch_size, epochs=350):
         X, Y, rewards = training_data
+        lr_schedule = self.get_lr_schedule()
         loss = self.model.fit(X, [Y, rewards], 
-                              batch_size=batch_size, epochs=epochs)
+                              batch_size=batch_size, 
+                              epochs=epochs,
+                              callbacks=[self.stop_criteria, lr_schedule])
         self.compile_lite_model()
-        return loss
+        self.save_losses(loss)
+        
+    def get_lr_schedule(self):
+        n = len(self.loss_history)
+        # if n < 70:
+        #     schedule = lambda epoch, lr : (1/7)**(7)
+        # else:
+        schedule = lambda epoch, lr : (1/7)**(4 + (n + epoch)//35000)
+        return LearningRateScheduler(schedule)
+    
     
     def save_losses(self, loss_history):
         """
         Method to save the evaulations of the loss function of the neural
         network on training data.
         """
-        losses = [loss[0] for loss in loss_history.history.values()]
-        self.loss_history.append(losses)
+        ls = list(loss_history.history.values())
+        losses = [[l[i] for l in ls] for i in range(len(ls[0]))]
+        for l in losses:
+            l.append(self.training_rounds)
+            self.loss_history.append(l)
+        self.training_rounds += 1
         
     def num_epochs(self):
         return len(self.loss_history)
@@ -425,3 +478,23 @@ class SixPlaneEncoder():
         Y = np.flip(Y, axis=1)
         Y[:,:,:,12:] = Y[:,:,:,24:11:-1]
         return Y
+    
+def print_tensor(tensor, header, filename='prediction_output.txt'):
+    with open(filename, 'a') as f:
+        f.write(header + "\n\n\n")
+        
+        shape = tensor.shape
+        if (not len(shape) == 4) and (not shape[0] == 1):
+            f.write("Tensor has the wrong shape")
+            
+        else:
+            for plane in range(shape[3]):
+                f.write("Plane {0}\n".format(plane))
+                for i in range(shape[1]):
+                    row = ""
+                    for j in range(shape[2]):
+                        row += " {0:.0E} ".format(tensor[0, i, j, plane])
+                    f.write(row + "\n")
+                f.write("\n")
+            f.write("The sum of the elements is {0}".format(tensor.sum()))
+            f.write("\n\n")

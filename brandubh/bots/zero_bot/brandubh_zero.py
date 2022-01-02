@@ -66,7 +66,7 @@ class ZeroBot:
         if network:
             self.network = network
     
-    def select_move(self, game_state, return_visit_counts=False):
+    def select_move(self, game_state, root=None, return_search_tree=False):
         """
         Select a move to make from the given board position (game_state).
         
@@ -87,14 +87,15 @@ class ZeroBot:
         
         # Start with a tree consisting of a root node only. The root node
         # is associated with the given board position.
-        root = self.create_node(game_state)
+        if root == None:
+            root = self.create_node(game_state)
         
         # If no legal moves can be made from the given board position, pass 
         # the turn. This happens when all of the players pieces are surrounded,
         # if the player has no pieces left or if the game is over. 
         if not root.branches:
-            if return_visit_counts:
-                return Act.pass_turn(), {}
+            if return_search_tree:
+                return Act.pass_turn(), root
             return Act.pass_turn()
         
         for i in range(self.num_rounds):
@@ -145,28 +146,26 @@ class ZeroBot:
                 move = node.last_move
                 node = node.parent
                 value *= -1
-            
-        # Get the visit counts of the branches if they were requested.
-        if return_visit_counts:
-            visit_counts = {}
-            for move in root.branches.keys():
-                visit_counts[move] = root.branches[move].visit_count
                 
         # Get a list of possible moves sorted according to visit count,
         # the move with the highest visit count should be first in the list.
         moves = [move for move in root.moves()]
-        moves = sorted(moves, key=root.visit_count, reverse=True)
-        
-        # Loop through the sorted moves and return the first legal one.
-        for move in moves:
-            if not game_state.is_move_illegal(move):
-                if return_visit_counts:
-                    return Act.play(move), visit_counts
-                return Act.play(move)
+        if moves:
+            if game_state.num_moves < 7:
+                p = np.asarray([root.branches[move].visit_count for move in moves])
+                p = p/sum(p)
+                move = moves[np.random.choice(len(moves), p=p)]
+            else:
+                move = max(moves, key=root.visit_count)
+            
+            # Loop through the sorted moves and return the first legal one.
+            if return_search_tree:
+                return Act.play(move), root
+            return Act.play(move)
         
         # If no legal move is found then pass the turn.
-        if return_visit_counts:
-            return Act.pass_turn(), visit_counts
+        if return_search_tree:
+            return Act.pass_turn(), root
         return Act.pass_turn()
                 
     def create_node(self, game_state, move=None, parent=None):

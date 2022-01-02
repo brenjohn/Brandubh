@@ -17,10 +17,11 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import keras
+from networks.zero_network import print_tensor
 
 from brandubh_zero import ZeroBot
 from greedy_random_bot import GreedyRandomBot
-from training_utils import gain_experience, save_training_data, competition
+from training_utils import gain_experience, save_training_data, DataManager, competition
 
 
 
@@ -40,30 +41,14 @@ from training_utils import gain_experience, save_training_data, competition
 from networks.zero_network import ZeroNet
 
 net = ZeroNet()
-bot = ZeroBot(280, net)
+bot = ZeroBot(350, net)
 
-def compile_bot(bot, lr):
-    bot.network.model.compile(optimizer=keras.optimizers.Adam(lr=lr),
+def compile_bot(bot):
+    bot.network.model.compile(optimizer=keras.optimizers.Adam(),
                               loss=['categorical_crossentropy', 'mse'],
-                              loss_weights=[1.0, 1.0])
+                              loss_weights=[1.0, 0.5])
     
-    
-compile_bot(bot, 0.000001)
-
-
-# %% .
-from networks.dual_network import DualNet
-
-net = DualNet()
-bot = ZeroBot(210, net)
-
-bot.network.black_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
-                  loss=['categorical_crossentropy', 'mse'],
-                  loss_weights=[1.0, 1.0])
-
-bot.network.white_model.compile(optimizer=keras.optimizers.Adam(lr=0.0000005),
-                  loss=['categorical_crossentropy', 'mse'],
-                  loss_weights=[1.0, 1.0])
+compile_bot(bot)
 
 
 
@@ -75,13 +60,15 @@ bot.save_as_old_bot()
 # %% train the bot
 import os
 
-num_episodes = 14
-num_cycles = 70
+num_episodes = 1
+num_cycles = 140
 
 move_limit = 140
 moves_to_look_ahead = 1
 
-gr_bot = GreedyRandomBot()
+# gr_bot = GreedyRandomBot()
+
+dm = DataManager()
 
 for cycle in range(num_cycles):
     
@@ -90,11 +77,12 @@ for cycle in range(num_cycles):
         alpha_tmp = bot.alpha
         bot.alpha = 0
         #bot.evaluate_against_old_bot(350, moves_to_look_ahead)
-        bot.evaluate_against_rand_bot(350, moves_to_look_ahead)
+        bot.evaluate_against_rand_bot(140, moves_to_look_ahead)
         bot.alpha = alpha_tmp
     
     print('\nGainning experience, cycle {0}'.format(cycle))
-    eps = 1.0/(1.0 + (cycle+7)/7.0) # parameter for epsilon greedy selection.
+    # eps = 1.0/(1.0 + (cycle+7)/7.0) # parameter for epsilon greedy selection.
+    eps = 0.07
     self_play_exp = gain_experience(bot, bot, num_episodes, move_limit, eps)
     # grand_wht_exp = gain_experience(gr_bot, bot, num_episodes, move_limit, 0)
     # grand_blk_exp = gain_experience(bot, gr_bot, num_episodes, move_limit, 0)
@@ -108,13 +96,16 @@ for cycle in range(num_cycles):
     # training data
     training_data = bot.network.create_training_data(experience)
     save_training_data(training_data, cycle)
+    dm.append_data(training_data)
     
     print('\nTraining network, cycle {0}'.format(cycle))
-    losses = bot.network.train(training_data, batch_size=256, epochs=1)
-    bot.network.save_losses(losses)
+    n = cycle + 1 if cycle < 7 else 7
+    for i in range(n):
+        training_data = dm.sample_training_data(2048)
+        losses = bot.network.train(training_data, batch_size=256)
     
-    lr = 0.00001/(1.0 + (cycle+1)/0.7)
-    compile_bot(bot, lr)
+    # lr = 0.00001/(1.0 + (cycle+1)/0.7)
+    # compile_bot(bot)
     bot.save_bot("model_data/model_{0}_data/".format(cycle))
         
     

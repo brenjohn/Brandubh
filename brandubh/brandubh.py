@@ -208,12 +208,16 @@ class GameState:
     
     The winner variable is 0 while the game is not over and set to -1 or 1
     when the game is over depending on who wins
+    
+    The history field is the root of a linked list containing the history of
+    the current game.
     """
 
-    def __init__(self, game_set, player, winner=0, history=None):
+    def __init__(self, game_set, player, winner=0, history=None, num_moves=0):
         self.game_set = game_set
         self.player = player
         self.winner = winner
+        self.num_moves = num_moves
         if history:
             self.history = history
         else:
@@ -241,6 +245,7 @@ class GameState:
         This method updates a GameState object by applying the move
         represented by the given Act object 'action'.
         """
+        self.num_moves += 1
         if action.is_play:
             # Move the piece
             self.game_set.move_piece(action.move)
@@ -437,7 +442,11 @@ class GameState:
         """
         # game_set = copy.deepcopy(self.game_set)
         game_set = self.game_set.copy()
-        return GameState(game_set, self.player, self.winner, self.history)
+        return GameState(game_set, 
+                         self.player, 
+                         self.winner, 
+                         self.history, 
+                         self.num_moves)
     
 
 
