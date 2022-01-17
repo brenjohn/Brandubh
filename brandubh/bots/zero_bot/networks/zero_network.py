@@ -79,6 +79,7 @@ class ZeroNet():
         self.encoder = SixPlaneEncoder()
         self.loss_history = []
         self.training_rounds = 0
+        self.batch_size = 0
         
         self.stop_criteria = EarlyStopping(monitor="loss",
                                            patience=7,
@@ -89,10 +90,13 @@ class ZeroNet():
         converter = tf.lite.TFLiteConverter.from_keras_model(self.model)
         # converter.optimizations = [tf.lite.Optimize.DEFAULT]
         lite_model = converter.convert()
+        
         self.intrp = tf.lite.Interpreter(model_content=lite_model)
         self.intrp.allocate_tensors()
+        
         input_det = self.intrp.get_input_details()[0]
         policy_det, value_det = self.intrp.get_output_details()
+        
         self.inp_ind = input_det["index"]
         self.val_ind = value_det["index"]
         self.pol_ind = policy_det["index"]
@@ -185,37 +189,47 @@ class ZeroNet():
         policy_output = ZeroNet.policy_head(processed_board)
         value_output = ZeroNet.value_head(processed_board)
         
-        model = Model(inputs=board_input, 
+        model = Model(inputs=board_input,
                       outputs=[policy_output, value_output])
         return model
     
-    def predict(self, game_state):
+    def predict(self, game_states):
         """
         This method uses the neural network to predict the value of a board 
-        position and the prior distribution over possible next moves.
+        positions and their prior distribution over possible next moves.
         """
-        # First encode the game state as a tensor which can be passed to the
+        # First encode the game states as a tensor which can be passed to the
         # network. Then get the network to make the prediction and decode the
         # network's policy output into a dictionary of move-prior pairs
-        input_tensor, pieces = self.encoder.encode(game_state, True)
-        
-        input_tensor = input_tensor.reshape(1, 7, 7, 6)
+        encoded_states = [self.encoder.encode(s, True) for s in game_states]
+        input_tensors = [s[0].reshape(1, 7, 7, 6) for s in encoded_states]
+        input_tensor = np.concatenate(input_tensors)
         input_tensor = input_tensor.astype(np.float32)
+        
+        if self.batch_size != input_tensor.shape[0]:
+            self.batch_size = input_tensor.shape[0]
+            input_det = self.intrp.get_input_details()[0]
+            self.intrp.resize_tensor_input(input_det['index'], input_tensor.shape)
+            self.intrp.allocate_tensors()
         
         self.intrp.set_tensor(self.inp_ind, input_tensor)
         self.intrp.invoke()
         priors = self.intrp.get_tensor(self.pol_ind)
-        value = self.intrp.get_tensor(self.val_ind)
+        values = self.intrp.get_tensor(self.val_ind)
         
-        # priors, value = self.model.predict(input_tensor.reshape(1, 7, 7, 6))
+        states_pieces = [s[1] for s in encoded_states]
+        move_priors = [self.encoder.decode_policy(p, pieces) 
+                       for p, pieces in zip(priors, states_pieces)]
         
-        move_priors = self.encoder.decode_policy(priors[0], pieces)
+        # Noramlise prior distributions
+        for priors in move_priors:
+            N = sum(priors.values())
+            for (move, prior) in priors.items():
+                priors[move] /= N
         
-        # Normalise the move prior distribution
-        N = sum(move_priors.values())
-        for (move, prior) in move_priors.items():
-            move_priors[move] = prior/N
-        return move_priors, value[0][0]
+        predictions = [(priors, value) 
+                       for priors, value in zip(move_priors, values)]
+        return predictions
     
     def print_prediction(self, input_tensor):
         """
