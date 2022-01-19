@@ -134,7 +134,8 @@ class ZeroBot:
         moves = [move for move in self.root.moves()]
         if moves:
             if game_state.num_moves < 7:
-                p = np.asarray([self.root.branches[move].visit_count for move in moves])
+                p = np.asarray([self.root.branches[move].visit_count 
+                                for move in moves])
                 p = p/sum(p)
                 # TODO: p is all zeros when evals_per_turn is 0
                 move = moves[np.random.choice(len(moves), p=p)]
@@ -217,11 +218,12 @@ class ZeroBot:
                     
             climbers = self.climbers[0:climbers_ready]
             states = [climber.get_next_state() for climber in climbers]
-            predictions = self.network.predict(states)
+            if len(states) > 0:
+                predictions = self.network.predict(states)
             
-            for state, pred, climber in zip(states, predictions, climbers):
-                climber.expand_branch(state, *pred)
-                climber.climb_down()
+                for state, pred, climber in zip(states, predictions, climbers):
+                    climber.expand_branch(state, *pred)
+                    climber.climb_down()
 
                 
     def create_root_node(self, game_state, move=None, parent=None):
@@ -487,24 +489,32 @@ class TreeNode:
     def expected_value(self, move):
         branch = self.branches[move]
         if branch.visit_count == 0:
-            return 0
+            return -1
         return (branch.total_value + branch.virtual_loss) / branch.visit_count
     
     def increment_virtual_loss(self, move):
-        branch = self.branches[move]
-        branch.virtual_loss -= 1
-        branch.visit_count += 1
+        if move:
+            branch = self.branches[move]
+            branch.virtual_loss -= 1
+            branch.visit_count += 1
         
     def decrement_virtual_loss(self, move):
-        branch = self.branches[move]
-        branch.virtual_loss += 1
-        branch.visit_count -= 1
+        if move:
+            branch = self.branches[move]
+            branch.virtual_loss += 1
+            branch.visit_count -= 1
     
     def lock_branch(self, move):
-        self.branches[move].virtual_loss = -7 # Q will never be this negative
+        # TODO: not locking a None move means there's a chance the 
+        # corresponding node will be evaluated more than once, possibly 
+        # skewing the tree statistics slightly.
+        if move:
+            # Other PUCT scores will never be this negative
+            self.branches[move].virtual_loss = -7
         
     def unlock_branch(self, move):
-        self.branches[move].virtual_loss = 0
+        if move:
+            self.branches[move].virtual_loss = 0
     
     def prior(self, move):
         return self.branches[move].prior
@@ -658,6 +668,8 @@ class TreeClimber:
               N = The total number of visits to the given node
               n = the number of those visits that went to the branch 
                   associated with the move
+                  
+        Christopher D. Rosin - Multi-armed Bandits with Episode Context
         """
         c_sqrt_total_n = self.c * np.sqrt(node.total_visit_count)
         

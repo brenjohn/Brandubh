@@ -41,7 +41,7 @@ from training_utils import gain_experience, save_training_data, DataManager, com
 from networks.zero_network import ZeroNet
 
 net = ZeroNet()
-bot = ZeroBot(350, net)
+bot = ZeroBot(evals_per_turn=350, batch_size=14, network=net)
 
 def compile_bot(bot):
     bot.network.model.compile(optimizer=keras.optimizers.Adam(),
@@ -60,7 +60,7 @@ bot.save_as_old_bot()
 # %% train the bot
 import os
 
-num_episodes = 1
+num_episodes = 2
 num_cycles = 140
 
 move_limit = 140
@@ -106,7 +106,7 @@ for cycle in range(num_cycles):
     
     # lr = 0.00001/(1.0 + (cycle+1)/0.7)
     # compile_bot(bot)
-    bot.save_bot("model_data/model_{0}_data/".format(cycle))
+    # bot.save_bot("model_data/model_{0}_data/".format(cycle))
         
     
     
