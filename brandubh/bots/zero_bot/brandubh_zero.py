@@ -57,8 +57,8 @@ class ZeroBot:
     def __init__(self, 
                  evals_per_turn = 140, 
                  batch_size = 7,
-                 c = 2.0,
-                 alpha = 0.03,
+                 c = 1.0,
+                 alpha = 0.15,
                  network = None):
         self.evals_per_turn = evals_per_turn
         self.alpha = alpha
@@ -107,6 +107,7 @@ class ZeroBot:
         if not self.root:
             self.root = self.create_root_node(game_state.copy())
         # self.root = self.create_root_node(game_state.copy())
+        # self.root.add_noise(self.alpha)
         
         
         # If no legal moves can be made from the given board position, pass 
@@ -133,7 +134,7 @@ class ZeroBot:
         # 2) Pick the move with the highest visit count.
         moves = [move for move in self.root.moves()]
         if moves:
-            if game_state.num_moves < 7:
+            if game_state.num_moves < 6:
                 p = np.asarray([self.root.branches[move].visit_count 
                                 for move in moves])
                 p = p/sum(p)
@@ -243,11 +244,13 @@ class ZeroBot:
         
         # If a root node is being created, then add some dirichlet noise
         # to the prior probabilities to help exploration.
-        if parent == None and self.alpha > 0:
-            num_branches = len(move_priors)
-            dirichlet_noise = np.random.dirichlet([self.alpha]*num_branches)
-            for (i, move) in enumerate(move_priors.keys()):
-                move_priors[move] = (move_priors[move] + dirichlet_noise[i])/2
+        # if parent == None and self.alpha > 0:
+        #     num_branches = len(move_priors)
+        #     # dirichlet_noise = np.random.dirichlet([self.alpha]*num_branches)
+        #     noise = np.random.gamma(self.alpha, 1, num_branches)
+        #     for (i, move) in enumerate(move_priors.keys()):
+        #         move_priors[move] = (0.75 * move_priors[move] + 
+        #                              0.25 * noise[i])
         
         # Create the node for the given game state, with the predicted value
         # and priors, and attach it to the tree.
@@ -469,8 +472,12 @@ class TreeNode:
         
         self.branches = {}
         moves = game_state.legal_moves()
+        N = 0
         for move in moves:
-            self.branches[move] = Branch(priors[move])
+            N += priors[move]
+            
+        for move in moves:
+            self.branches[move] = Branch(priors[move]/N)
                 
         self.children = {}
          
@@ -486,10 +493,18 @@ class TreeNode:
     def get_child(self, move):
         return self.children[move]
     
+    def add_noise(self, alpha):
+        if alpha > 0:
+            num_branches = len(self.branches)
+            noise = np.random.gamma(alpha, 1, num_branches)
+            N = sum(noise)
+            for i, branch in enumerate(self.branches.values()):
+                branch.prior = (0.75 * branch.prior + 0.25 * noise[i] / N)
+    
     def expected_value(self, move):
         branch = self.branches[move]
         if branch.visit_count == 0:
-            return -1
+            return 0
         return (branch.total_value + branch.virtual_loss) / branch.visit_count
     
     def increment_virtual_loss(self, move):
@@ -510,11 +525,13 @@ class TreeNode:
         # skewing the tree statistics slightly.
         if move:
             # Other PUCT scores will never be this negative
-            self.branches[move].virtual_loss = -7
+            self.branches[move].virtual_loss = -700
+            self.branches[move].visit_count = 1
         
     def unlock_branch(self, move):
         if move:
             self.branches[move].virtual_loss = 0
+            self.branches[move].visit_count = 0
     
     def prior(self, move):
         return self.branches[move].prior
@@ -633,6 +650,7 @@ class TreeClimber:
             move = node.last_move
             node = node.parent
             node.decrement_virtual_loss(move)
+            # TODO: explore using -0.9 here instead.
             value *= -1
             
         node.record_visit(move, value)
@@ -671,7 +689,12 @@ class TreeClimber:
                   
         Christopher D. Rosin - Multi-armed Bandits with Episode Context
         """
-        c_sqrt_total_n = self.c * np.sqrt(node.total_visit_count)
+        c_sqrt_total_n = np.sqrt(node.total_visit_count) #* self.c
+        
+        cb = 1400
+        ci = 1.4
+        c = np.log((1 + node.total_visit_count + cb)/cb) + ci
+        c_sqrt_total_n *= c
         
         def branch_score(move):
             q = node.expected_value(move)

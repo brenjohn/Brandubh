@@ -139,12 +139,12 @@ class ZeroNet():
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
-        x = Dense(14, use_bias = biases, 
+        x = Dense(21, use_bias = biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                    kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Dense(7, use_bias = biases, 
+        x = Dense(14, use_bias = biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                   kernel_regularizer = l2(cls.alpha))(x)
@@ -156,7 +156,7 @@ class ZeroNet():
     @classmethod
     def policy_head(cls, x):
         biases = True
-        x = Conv2D(filters = 70, kernel_size = (3, 3), use_bias = biases,
+        x = Conv2D(filters = 70, kernel_size = (1, 1), use_bias = biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -221,13 +221,13 @@ class ZeroNet():
         move_priors = [self.encoder.decode_policy(p, pieces) 
                        for p, pieces in zip(priors, states_pieces)]
         
-        # Noramlise prior distributions
+        # Restrict and noramlise prior distributions over possible moves.
         for priors in move_priors:
             N = sum(priors.values())
             for (move, prior) in priors.items():
                 priors[move] /= N
         
-        predictions = [(priors, value) 
+        predictions = [(priors, value[0]) 
                        for priors, value in zip(move_priors, values)]
         return predictions
     
@@ -261,10 +261,10 @@ class ZeroNet():
         self.model = load_model(prefix + 'zero_model.h5')
         self.compile_lite_model()
         
-    def train(self, training_data, batch_size, epochs=350):
+    def train(self, training_data, batch_size, epochs=1):
         X, Y, rewards = training_data
         lr_schedule = self.get_lr_schedule()
-        loss = self.model.fit(X, [Y, rewards], 
+        loss = self.model.fit(X, [Y, rewards],
                               batch_size=batch_size, 
                               epochs=epochs,
                               callbacks=[self.stop_criteria, lr_schedule])
@@ -276,7 +276,7 @@ class ZeroNet():
         # if n < 70:
         #     schedule = lambda epoch, lr : (1/7)**(7)
         # else:
-        schedule = lambda epoch, lr : (1/7)**(4 + (n + epoch)//35000)
+        schedule = lambda epoch, lr : (1/7)**(4 + (n + epoch)//350)
         return LearningRateScheduler(schedule)
     
     
@@ -321,8 +321,8 @@ class ZeroNet():
             # moves between it and the winning move. Rewards for moves made by 
             # the winning side are positive and negative for the losing side.
             episode_rewards = episode['winner'] * np.array(episode['players'])
-            # episode_rewards = (np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
-            #                          )) * episode_rewards
+            # episode_rewards = (np.exp(-1*(num_moves-np.arange(num_moves)-1)/28
+            #                           )) * episode_rewards
             
             rewards.append( episode_rewards )
             
