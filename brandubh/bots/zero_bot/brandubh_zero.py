@@ -57,7 +57,7 @@ class ZeroBot:
     def __init__(self, 
                  evals_per_turn = 140, 
                  batch_size = 7,
-                 c = 1.0,
+                 c = 2.0,
                  alpha = 0.15,
                  network = None):
         self.evals_per_turn = evals_per_turn
@@ -196,6 +196,7 @@ class ZeroBot:
         Runs the hybrid Monte Carlo - neural network tree search to populate
         the search tree with board evaluations.
         """
+        next_states = [None] * len(self.climbers)
         for climber in self.climbers:
             climber.set_node(self.root)
         
@@ -209,17 +210,21 @@ class ZeroBot:
                 climber = self.climbers[climbers_ready]
                 climber.climb_up()
 
-                if climber.branch_can_be_expanded():
+                # TODO: Can possibly avoid extra copying of terminal states by
+                # storing states inside branches.
+                next_state = climber.get_next_state()
+                if next_state.is_not_over():
+                    next_states[climbers_ready] = next_state
                     climbers_ready += 1
                 else:
                     climber.evaluate_terminal_leaf()
                     climber.climb_down()
                     
-                evals_made +=1
+                evals_made += 1
                     
             climbers = self.climbers[0:climbers_ready]
-            states = [climber.get_next_state() for climber in climbers]
-            if len(states) > 0:
+            states = next_states[0:climbers_ready]
+            if climbers_ready > 0:
                 predictions = self.network.predict(states)
             
                 for state, pred, climber in zip(states, predictions, climbers):
@@ -526,12 +531,12 @@ class TreeNode:
         if move:
             # Other PUCT scores will never be this negative
             self.branches[move].virtual_loss = -700
-            self.branches[move].visit_count = 1
+            self.branches[move].visit_count += 1
         
     def unlock_branch(self, move):
         if move:
             self.branches[move].virtual_loss = 0
-            self.branches[move].visit_count = 0
+            self.branches[move].visit_count -= 1
     
     def prior(self, move):
         return self.branches[move].prior
@@ -662,8 +667,9 @@ class TreeClimber:
         # other player is 1. The current node is not updated with
         # the new reward as no branches can stem from a finished game
         # state.
-        self.next_move = self.node.last_move
-        self.node = self.node.parent
+        
+        # self.next_move = self.node.last_move
+        # self.node = self.node.parent
         self.value = 1
         
     def expand_branch(self, state, priors, value):
@@ -689,12 +695,12 @@ class TreeClimber:
                   
         Christopher D. Rosin - Multi-armed Bandits with Episode Context
         """
-        c_sqrt_total_n = np.sqrt(node.total_visit_count) #* self.c
+        c_sqrt_total_n = np.sqrt(node.total_visit_count) * self.c
         
-        cb = 1400
-        ci = 1.4
-        c = np.log((1 + node.total_visit_count + cb)/cb) + ci
-        c_sqrt_total_n *= c
+        # cb = 1400
+        # ci = 1.4
+        # c = np.log((1 + node.total_visit_count + cb)/cb) + ci
+        # c_sqrt_total_n *= c
         
         def branch_score(move):
             q = node.expected_value(move)
