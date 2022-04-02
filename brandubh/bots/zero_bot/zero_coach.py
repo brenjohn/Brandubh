@@ -46,7 +46,7 @@ bot = ZeroBot(evals_per_turn=700, batch_size=21, network=net)
 def compile_bot(bot):
     bot.network.model.compile(optimizer=keras.optimizers.Adam(),
                               loss=['categorical_crossentropy', 'mse'],
-                              loss_weights=[1.0, 1.0])
+                              loss_weights=[1.0, 0.1])
     
 compile_bot(bot)
 
@@ -60,8 +60,8 @@ bot.save_as_old_bot()
 # %% train the bot
 import os
 
-num_episodes = 7
-num_cycles = 280
+num_episodes = 4
+num_cycles = 420
 
 move_limit = 140
 moves_to_look_ahead = 1
@@ -81,8 +81,9 @@ for cycle in range(num_cycles):
         bot.alpha = alpha_tmp
     
     print('\nGainning experience, cycle {0}'.format(cycle))
-    eps = 1.0/(1.0 + (cycle+7)/7.0) + 0.035# parameter for epsilon greedy selection.
+    # eps = 1.0/(1.0 + (cycle+7)/0.7) + 0.035# parameter for epsilon greedy selection.
     # eps = 0.07
+    eps = 0.07
     self_play_exp = gain_experience(bot, bot, num_episodes, move_limit, eps)
     # grand_wht_exp = gain_experience(gr_bot, bot, num_episodes, move_limit, 0)
     # grand_blk_exp = gain_experience(bot, gr_bot, num_episodes, move_limit, 0)
@@ -99,11 +100,11 @@ for cycle in range(num_cycles):
     dm.append_data(training_data)
     
     print('\nTraining network, cycle {0}'.format(cycle))
-    # n = cycle + 1 if cycle < 7 else 7
-    n = 1
+    n = cycle + 1 if cycle < 7 else 7
+    # n = 1
     for i in range(n):
         training_data = dm.sample_training_data(4096)
-        losses = bot.network.train(training_data, batch_size=128)
+        losses = bot.network.train(training_data, batch_size=256)
     
     # lr = 0.00001/(1.0 + (cycle+1)/0.7)
     # compile_bot(bot)
@@ -116,7 +117,7 @@ for cycle in range(num_cycles):
 import matplotlib.pyplot as plt
 import numpy as np
 
-title = "22-1-2022-b"
+title = "4-2-2022-a"
 
 score_hist = [sc[0] for sc in bot.evaluation_history_ran]
 moving_av = np.convolve(score_hist, np.ones(14), 'valid')/14
@@ -126,7 +127,7 @@ plt.title(title)
 plt.xlabel('iterations')
 plt.ylabel('average score')
 
-# plt.savefig('evaluation-'+title+'.png', dpi=300)
+plt.savefig('evaluation-'+title+'.png', dpi=300)
 
 # %% .
 from networks.zero_network import ZeroNet

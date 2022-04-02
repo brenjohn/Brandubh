@@ -57,7 +57,7 @@ class ZeroBot:
     def __init__(self, 
                  evals_per_turn = 140, 
                  batch_size = 7,
-                 c = 2.0,
+                 c = 1.4,
                  alpha = 0.15,
                  network = None):
         self.evals_per_turn = evals_per_turn
@@ -107,7 +107,7 @@ class ZeroBot:
         if not self.root:
             self.root = self.create_root_node(game_state.copy())
         # self.root = self.create_root_node(game_state.copy())
-        # self.root.add_noise(self.alpha)
+        self.root.add_noise(self.alpha)
         
         
         # If no legal moves can be made from the given board position, pass 
@@ -188,7 +188,7 @@ class ZeroBot:
                     self.root = None
                     return
                 
-            # Disconnect the root fromany parent it might have.
+            # Disconnect the root from any parent it might have.
             self.root.parent = None
     
     def update_tree(self):
@@ -246,16 +246,6 @@ class ZeroBot:
         # of visit counts).
         prediction = self.network.predict([game_state])
         move_priors, value = prediction[0]
-        
-        # If a root node is being created, then add some dirichlet noise
-        # to the prior probabilities to help exploration.
-        # if parent == None and self.alpha > 0:
-        #     num_branches = len(move_priors)
-        #     # dirichlet_noise = np.random.dirichlet([self.alpha]*num_branches)
-        #     noise = np.random.gamma(self.alpha, 1, num_branches)
-        #     for (i, move) in enumerate(move_priors.keys()):
-        #         move_priors[move] = (0.75 * move_priors[move] + 
-        #                              0.25 * noise[i])
         
         # Create the node for the given game state, with the predicted value
         # and priors, and attach it to the tree.

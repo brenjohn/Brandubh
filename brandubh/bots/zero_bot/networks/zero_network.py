@@ -131,7 +131,7 @@ class ZeroNet():
     @classmethod
     def value_head(cls, x):
         biases = True
-        x = Conv2D(filters = 21, kernel_size = (1, 1), use_bias = True,
+        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = True,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -139,12 +139,12 @@ class ZeroNet():
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
-        x = Dense(21, use_bias = biases, 
+        x = Dense(28, use_bias = biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                    kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Dense(14, use_bias = biases, 
+        x = Dense(21, use_bias = biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                   kernel_regularizer = l2(cls.alpha))(x)
@@ -182,9 +182,9 @@ class ZeroNet():
         """
         board_input = Input(shape=(7,7,6), name='board_input')
         
-        processed_board = ZeroNet.conv_layer(board_input, 28, (3, 3))
-        for i in range(7):
-            processed_board = ZeroNet.residual_layer(processed_board, 28, (3, 3))
+        processed_board = ZeroNet.conv_layer(board_input, 35, (3, 3))
+        for i in range(14):
+            processed_board = ZeroNet.residual_layer(processed_board, 35, (3, 3))
             
         policy_output = ZeroNet.policy_head(processed_board)
         value_output = ZeroNet.value_head(processed_board)
@@ -276,7 +276,7 @@ class ZeroNet():
         # if n < 70:
         #     schedule = lambda epoch, lr : (1/7)**(7)
         # else:
-        schedule = lambda epoch, lr : (1/7)**(4 + (n + epoch)//350)
+        schedule = lambda epoch, lr : (1/7)**(5 + (n + epoch)//700)
         return LearningRateScheduler(schedule)
     
     
@@ -450,7 +450,7 @@ class SixPlaneEncoder():
             target_tensor[xi, yi, k] = prob
             N += prob
         
-        return target_tensor/N
+        return target_tensor if N == 0 else target_tensor/N
     
     def encode_priors(self, priors):            
         encoded_priors = [self.encode_prior(prior) for prior in priors]
