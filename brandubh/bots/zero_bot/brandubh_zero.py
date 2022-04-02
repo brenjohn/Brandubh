@@ -54,19 +54,30 @@ class ZeroBot:
     """
     is_trainable = True
     
-    def __init__(self, num_rounds=10, network=None):
-        self.num_rounds = num_rounds
-        self.c = 2.0
-        self.alpha = 0.03
+    def __init__(self, 
+                 evals_per_turn = 140, 
+                 batch_size = 7,
+                 c = 1.4,
+                 alpha = 0.15,
+                 network = None):
+        self.evals_per_turn = evals_per_turn
+        self.alpha = alpha
+        self.batch_size = batch_size
+        self.climbers = [TreeClimber(c) for i in range(batch_size)]
+        self.root = None
+        if network:
+            self.network = network
+        
+        # TODO: move these to a coach object.
         self.evaluation_history_old = []
         self.evaluation_history_ran = []
         self.loss_history = []
         self.rand_bot = RandomBot()
-        
-        if network:
-            self.network = network
     
-    def select_move(self, game_state, root=None, return_search_tree=False):
+    def select_move(self, 
+                    game_state, 
+                    return_search_tree=False, 
+                    reuse_search_tree=True):
         """
         Select a move to make from the given board position (game_state).
         
@@ -85,90 +96,143 @@ class ZeroBot:
         network.
         """
         
-        # Start with a tree consisting of a root node only. The root node
-        # is associated with the given board position.
-        if root == None:
-            root = self.create_node(game_state)
+        # If a search tree is already saved, reuse the subtree relevant to
+        # the given game state. Otherwise, start with a tree consisting of a 
+        # root node only. The root node is associated with the given board 
+        # position.
+        # TODO: properly set dirichlet noise on reused roots.
+        if reuse_search_tree:
+            self.update_root_to_current_game_state(game_state)
+            
+        if not self.root:
+            self.root = self.create_root_node(game_state.copy())
+        # self.root = self.create_root_node(game_state.copy())
+        self.root.add_noise(self.alpha)
+        
         
         # If no legal moves can be made from the given board position, pass 
         # the turn. This happens when all of the players pieces are surrounded,
         # if the player has no pieces left or if the game is over. 
-        if not root.branches:
+        if not self.root.branches:
             if return_search_tree:
-                return Act.pass_turn(), root
+                return Act.pass_turn(), self.root
             return Act.pass_turn()
         
-        for i in range(self.num_rounds):
-            # On each iteration, walk down the tree to a leaf node and select
-            # a move to make from the corresponding leaf game state.
-            node = root
-            next_move = self.select_branch(node)
-            while node.has_child(next_move):
-                node = node.get_child(next_move)
-                next_move = self.select_branch(node)
-             
-            # Create a new tree node for the selected move and add it to
-            # the tree. If the leaf node corresponds to a finished game
-            # then don't create a new node and assign a value to the node
-            # based on who won.
-            if node.state.is_not_over():
-                if next_move:
-                    new_state = node.state.copy()
-                    new_state.take_turn_with_no_checks(Act.play(next_move))
-                    child_node = self.create_node(new_state, 
-                                                  move=next_move, parent=node)
-                    move = next_move
-                    value = -1 * child_node.value 
-                else:
-                    # If the current player can't make any moves from the
-                    # selected gamestate then next_move will be 'None' meaning
-                    # the player passes the turn.
-                    new_state = node.state.copy()
-                    new_state.take_turn_with_no_checks(Act.pass_turn())
-                    child_node = self.create_node(new_state, 
-                                                  move=next_move, parent=node)
-                    move = next_move
-                    value = -1 * child_node.value
-            else:
-                # If the game in the current state is over, then the last
-                # player must have won the game. Thus the value/reward for the
-                # other player is 1. The current node is not updated with
-                # the new reward as no branches can stem from a finished game
-                # state.
-                move = node.last_move
-                node = node.parent
-                value = 1
-            
-            # Update the nodes traversed to get to the leaf node with the 
-            # new value for the new move.
-            while node is not None:
-                node.record_visit(move, value)
-                move = node.last_move
-                node = node.parent
-                value *= -1
+        # Run the hybrid neural network - Monte Carlo tree search algorithm to
+        # update the current search tree with new board evaluations.
+        self.update_tree()
                 
         # Get a list of possible moves sorted according to visit count,
         # the move with the highest visit count should be first in the list.
-        moves = [move for move in root.moves()]
+        # From the list of all possible next moves, select a move with one of
+        # the following method:
+        #
+        # 1) if the number of moves in the game is less than a certain 
+        # threshold, pick randomly according to a prob dist defined by the
+        # visit counts.
+        #
+        # 2) Pick the move with the highest visit count.
+        moves = [move for move in self.root.moves()]
         if moves:
-            if game_state.num_moves < 7:
-                p = np.asarray([root.branches[move].visit_count for move in moves])
+            if game_state.num_moves < 6:
+                p = np.asarray([self.root.branches[move].visit_count 
+                                for move in moves])
                 p = p/sum(p)
+                # TODO: p is all zeros when evals_per_turn is 0
                 move = moves[np.random.choice(len(moves), p=p)]
             else:
-                move = max(moves, key=root.visit_count)
+                move = max(moves, key=self.root.visit_count)
             
             # Loop through the sorted moves and return the first legal one.
             if return_search_tree:
-                return Act.play(move), root
+                return Act.play(move), self.root
             return Act.play(move)
         
         # If no legal move is found then pass the turn.
         if return_search_tree:
-            return Act.pass_turn(), root
+            return Act.pass_turn(), self.root
         return Act.pass_turn()
+    
+    def update_root_to_current_game_state(self, game_state):
+        """
+        Checks up to the last two moves in the history of the given game 
+        state. If the root of the currently saved search tree corresponds to 
+        one of the previous game states, the current root so updated to point 
+        to the root of the subtree relevant to selecting the next move for the
+        given game state. If the root doesn't correspond to any of the 
+        previous states, or if a relevant subtree doesn't exists, the root is
+        set to None so that a new search tree can be created.
+        """
+        # If a search tree is saved.
+        if self.root:
+            # Collect the moves made since the last turn taken.
+            moves_since_last_turn = []
+            historic_state = game_state.history
+            for steps in range(3):
+                if self.root.corresponds_to(historic_state):
+                    break
+                elif historic_state.previous_state:
+                    moves_since_last_turn.insert(0, historic_state.last_move)
+                    historic_state = historic_state.previous_state
+            else:
+                # Set the root to None if it isn't in the local history.
+                self.root = None
+                return
+            
+            # Update the root with the moves made since the last turn.
+            for move in moves_since_last_turn:
+                if self.root.has_child(move):
+                    self.root = self.root.get_child(move)
+                else:
+                    # Set root to none if a relevant subtree doesn't exist.
+                    self.root = None
+                    return
                 
-    def create_node(self, game_state, move=None, parent=None):
+            # Disconnect the root from any parent it might have.
+            self.root.parent = None
+    
+    def update_tree(self):
+        """
+        Runs the hybrid Monte Carlo - neural network tree search to populate
+        the search tree with board evaluations.
+        """
+        next_states = [None] * len(self.climbers)
+        for climber in self.climbers:
+            climber.set_node(self.root)
+        
+        evals_made = 0
+        while evals_made != self.evals_per_turn:
+            
+            climbers_ready = 0
+            while (climbers_ready < self.batch_size and 
+                   evals_made < self.evals_per_turn):
+                
+                climber = self.climbers[climbers_ready]
+                climber.climb_up()
+
+                # TODO: Can possibly avoid extra copying of terminal states by
+                # storing states inside branches.
+                next_state = climber.get_next_state()
+                if next_state.is_not_over():
+                    next_states[climbers_ready] = next_state
+                    climbers_ready += 1
+                else:
+                    climber.evaluate_terminal_leaf()
+                    climber.climb_down()
+                    
+                evals_made += 1
+                    
+            climbers = self.climbers[0:climbers_ready]
+            states = next_states[0:climbers_ready]
+            if climbers_ready > 0:
+                predictions = self.network.predict(states)
+            
+                for state, pred, climber in zip(states, predictions, climbers):
+                    climber.expand_branch(state, *pred)
+                    climber.climb_down()
+
+                
+    def create_root_node(self, game_state, move=None, parent=None):
         """
         This method creates a tree node for the given board position and adds
         it to the tree structure. It will be linked to the given parent node
@@ -180,15 +244,8 @@ class ZeroBot:
         # how good the board position is and get the prior probability 
         # distribution over possible next moves (ie the predicted distribution 
         # of visit counts).
-        move_priors, value = self.network.predict(game_state)
-        
-        # If a root node is being created, then add some dirichlet noise
-        # to the prior probabilities to help exploration.
-        if parent == None and self.alpha > 0:
-            num_branches = len(move_priors)
-            dirichlet_noise = np.random.dirichlet([self.alpha]*num_branches)
-            for (i, move) in enumerate(move_priors.keys()):
-                move_priors[move] = (move_priors[move] + dirichlet_noise[i])/2
+        prediction = self.network.predict([game_state])
+        move_priors, value = prediction[0]
         
         # Create the node for the given game state, with the predicted value
         # and priors, and attach it to the tree.
@@ -196,45 +253,15 @@ class ZeroBot:
         if parent is not None:
             parent.add_child(move, new_node)
         return new_node
-    
-    def select_branch(self, node):
-        """
-        This method selects a move/branch stemming from the given node by 
-        picking the move that maximises the following score:
-            
-            Q + c*p*sqrt(N)/(1+n),
-            
-        where Q = the estimated expected reward for the move,
-              c = a constant balancing exploration-exploitation,
-              p = prior probability for the move,
-              N = The total number of visits to the given node
-              n = the number of those visits that went to the branch 
-                  associated with the move
-        """
-        total_n = node.total_visit_count
-        
-        def branch_score(move):
-            q = node.expected_value(move)
-            p = node.prior(move)
-            n = node.visit_count(move)
-            return q + self.c * p * np.sqrt(total_n)/(1+n)
-        
-        moves = node.moves()
-        if moves:
-            return max(moves, key=branch_score)
-        else:
-            # If moves is empty then no legal moves can be made from the game
-            # state corresponding to the given node.
-            return None
         
     def turn_off_look_a_head(self):
-        self.num_rounds_tmp = self.num_rounds
+        self.num_rounds_tmp = self.evals_per_turn
         self.alpha_tmp = self.alpha
-        self.num_rounds = 1
+        self.evals_per_turn = 1
         self.alpha = 0.0
         
     def turn_on_look_a_head(self):
-        self.num_rounds = self.num_rounds_tmp
+        self.evals_per_turn = self.num_rounds_tmp
         self.alpha = self.alpha_tmp
     
     def evaluate_against_bot(self, opponent_bot, num_games,
@@ -306,12 +333,12 @@ class ZeroBot:
         Function to evaluate how good the current bot is against a bot who
         makes random moves.
         """
-        tmp = self.num_rounds
-        self.num_rounds = moves_to_look_ahead
+        tmp = self.evals_per_turn
+        self.evals_per_turn = moves_to_look_ahead
         print('Evaluating against random bot')
         results = self.evaluate_against_bot(self.rand_bot, num_games)
         self.evaluation_history_ran.append(results)
-        self.num_rounds = tmp
+        self.evals_per_turn = tmp
         
     def evaluate_against_old_bot(self, num_games,
                                  moves_to_look_ahead = 0,
@@ -321,14 +348,14 @@ class ZeroBot:
         version of the current bot whoes weights are save under the directory
         given by the parameter 'prefix'. 
         """
-        tmp = self.num_rounds
-        self.num_rounds = moves_to_look_ahead
+        tmp = self.evals_per_turn
+        self.evals_per_turn = moves_to_look_ahead
         print('Evaluating against old bot')
         old_bot = ZeroBot(1)
         old_bot.load_old_bot(prefix)
         results = self.evaluate_against_bot(old_bot, num_games)
         self.evaluation_history_old.append(results)
-        self.num_rounds = tmp
+        self.evals_per_turn = tmp
         
     def save_losses(self, loss_history):
         """
@@ -348,7 +375,7 @@ class ZeroBot:
             os.makedirs(prefix)
             
         network_load_command = self.network.save_network(prefix)
-        attributes = {"num_rounds" : self.num_rounds,
+        attributes = {"evals_per_turn" : self.evals_per_turn,
                       "c" : self.c,
                       "alpha" : self.alpha,
                       "loss_history" : self.loss_history,
@@ -366,7 +393,7 @@ class ZeroBot:
         attributes = np.load(prefix + "model_attributes.npy",
                              allow_pickle='TRUE').item()
         
-        self.num_rounds = attributes["num_rounds"]
+        self.evals_per_turn = attributes["evals_per_turn"]
         self.c = attributes["c"]
         self.alpha = attributes["alpha"]
         if "loss_history" in attributes:
@@ -402,6 +429,7 @@ class Branch:
     network.
     """
     def __init__(self, prior):
+        self.virtual_loss = 0
         self.prior = prior
         self.visit_count = 0
         self.total_value = 0 # when divided by visit count should give the
@@ -438,9 +466,13 @@ class TreeNode:
         self.total_visit_count = 1
         
         self.branches = {}
-        for move, prior in priors.items():
-            if not game_state.is_move_illegal(move):
-                self.branches[move] = Branch(prior)
+        moves = game_state.legal_moves()
+        N = 0
+        for move in moves:
+            N += priors[move]
+            
+        for move in moves:
+            self.branches[move] = Branch(priors[move]/N)
                 
         self.children = {}
          
@@ -456,11 +488,45 @@ class TreeNode:
     def get_child(self, move):
         return self.children[move]
     
+    def add_noise(self, alpha):
+        if alpha > 0:
+            num_branches = len(self.branches)
+            noise = np.random.gamma(alpha, 1, num_branches)
+            N = sum(noise)
+            for i, branch in enumerate(self.branches.values()):
+                branch.prior = (0.75 * branch.prior + 0.25 * noise[i] / N)
+    
     def expected_value(self, move):
         branch = self.branches[move]
         if branch.visit_count == 0:
             return 0
-        return branch.total_value / branch.visit_count
+        return (branch.total_value + branch.virtual_loss) / branch.visit_count
+    
+    def increment_virtual_loss(self, move):
+        if move:
+            branch = self.branches[move]
+            branch.virtual_loss -= 1
+            branch.visit_count += 1
+        
+    def decrement_virtual_loss(self, move):
+        if move:
+            branch = self.branches[move]
+            branch.virtual_loss += 1
+            branch.visit_count -= 1
+    
+    def lock_branch(self, move):
+        # TODO: not locking a None move means there's a chance the 
+        # corresponding node will be evaluated more than once, possibly 
+        # skewing the tree statistics slightly.
+        if move:
+            # Other PUCT scores will never be this negative
+            self.branches[move].virtual_loss = -700
+            self.branches[move].visit_count += 1
+        
+    def unlock_branch(self, move):
+        if move:
+            self.branches[move].virtual_loss = 0
+            self.branches[move].visit_count -= 1
     
     def prior(self, move):
         return self.branches[move].prior
@@ -476,3 +542,167 @@ class TreeNode:
         if move:
             self.branches[move].visit_count += 1
             self.branches[move].total_value += value
+            
+    def is_not_terminal_leaf(self):
+        return self.state.is_not_over()
+            
+    def corresponds_to(self, history_link):
+        if history_link:
+            if self.state.player == history_link.player:
+                if self.state.game_set.board == history_link.board:
+                    return True
+        return False
+    
+    def check_legality(self):
+        local_checks = [self.state.is_move_illegal(m) 
+                        for m in self.branches.keys()]
+        
+        descendant_checks = []
+        if self.state.is_not_over():
+            for child in self.children.values():
+                descendant_checks += child.check_legality()
+        
+        return descendant_checks + local_checks
+            
+            
+            
+class TreeClimber:
+    """
+    An instance TreeClimber is responsible for traversing a search tree
+    according to the PUCT (polynomial upper confidence tree) rule.
+    
+    A virtual loss, stored in the branch objects, is used to modify the PUCT
+    score of branches traversed by a treeclimber to discourage different 
+    instances of TreeClimber from exploring the same branches. This 
+    facilitates batching of network predictions.
+    
+    Expanding a leaf node of a search tree happens by the following steps:
+        
+        1 - A treeclimber initialised with the root node uses the climb_up
+        method to traverse up the tree to a leaf node. The virtual loss
+        of traversed branches is increased during this process.
+        
+        2 - The leaf can be expanded with the expand_branch method
+        
+        3 - The treeclimber then traverses back to the root node using the
+        climb_down method which also updates the branch fields along the way
+        with the appropriate values. Changes to the virtual loss are undone
+        here.
+    """
+    def __init__(self, c):
+        self.c = c
+        self.node = None
+        self.next_move = None
+        self.value = None
+        
+    def set_node(self, node):
+        self.node = node
+        
+    def get_next_state(self):
+        if self.next_move:
+            action = Act.play(self.next_move)
+        else:
+            # If the current player can't make any moves from the
+            # selected game state then next move will be 'None' meaning
+            # the player passes the turn.
+            action = Act.pass_turn()
+        next_state = self.node.state.copy()
+        next_state.take_turn_with_no_checks(action)
+        return next_state
+        
+    def branch_can_be_expanded(self):
+        return self.node.is_not_terminal_leaf()
+        
+    def climb_up(self):
+        """
+        climb up the tree to a leaf node and select a move to make from the 
+        corresponding leaf game state.
+        """
+        node = self.node
+        next_move = self.select_branch(node)
+        
+        while node.has_child(next_move):
+            node.increment_virtual_loss(next_move)
+            node = node.get_child(next_move)
+            next_move = self.select_branch(node)
+            
+        node.lock_branch(next_move)
+        self.node = node
+        self.next_move = next_move
+    
+    def climb_down(self):
+        """
+        Climb down the tree and update the nodes traversed to get to the leaf 
+        node with the new value for the new move.
+        """
+        node = self.node
+        move = self.next_move
+        value = self.value
+        
+        node.unlock_branch(move)
+        while node.parent is not None:
+            node.record_visit(move, value)
+            move = node.last_move
+            node = node.parent
+            node.decrement_virtual_loss(move)
+            # TODO: explore using -0.9 here instead.
+            value *= -1
+            
+        node.record_visit(move, value)
+        self.node = node
+        
+    def evaluate_terminal_leaf(self):
+        # If the game in the current state is over, then the last
+        # player must have won the game. Thus the value/reward for the
+        # other player is 1. The current node is not updated with
+        # the new reward as no branches can stem from a finished game
+        # state.
+        
+        # self.next_move = self.node.last_move
+        # self.node = self.node.parent
+        self.value = 1
+        
+    def expand_branch(self, state, priors, value):
+        # Create the node for the given game state, with the predicted value
+        # and priors, and attach it to the tree.
+        new_node = TreeNode(state, value, priors, self.node, self.next_move)
+        self.node.add_child(self.next_move, new_node)
+        self.value = -1 * value
+    
+    def select_branch(self, node):
+        """
+        This method selects a move/branch stemming from the given node by 
+        picking the move that maximises the following PUCT score:
+            
+            Q + c*p*sqrt(N)/(1+n),
+            
+        where Q = the estimated expected reward for the move,
+              c = a constant balancing exploration-exploitation,
+              p = prior probability for the move,
+              N = The total number of visits to the given node
+              n = the number of those visits that went to the branch 
+                  associated with the move
+                  
+        Christopher D. Rosin - Multi-armed Bandits with Episode Context
+        """
+        c_sqrt_total_n = np.sqrt(node.total_visit_count) * self.c
+        
+        # cb = 1400
+        # ci = 1.4
+        # c = np.log((1 + node.total_visit_count + cb)/cb) + ci
+        # c_sqrt_total_n *= c
+        
+        def branch_score(move):
+            q = node.expected_value(move)
+            p = node.prior(move)
+            n = node.visit_count(move)
+            return q + p * c_sqrt_total_n/(1+n)
+        
+        moves = node.moves()
+        if moves:
+            return max(moves, key=branch_score)
+        else:
+            # If moves is empty then no legal moves can be made from the game
+            # state corresponding to the given node.
+            return None
+        
