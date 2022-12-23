@@ -14,6 +14,8 @@ import os
 
 from brandubh import Act, GameState
 from bots.random_bot import RandomBot
+from bots.greedy_random_bot import GreedyRandomBot
+from bots.mcbot import MCTSBot
 
 
 
@@ -63,6 +65,7 @@ class ZeroBot:
         self.evals_per_turn = evals_per_turn
         self.alpha = alpha
         self.batch_size = batch_size
+        self.c = c
         self.climbers = [TreeClimber(c) for i in range(batch_size)]
         self.root = None
         if network:
@@ -70,9 +73,15 @@ class ZeroBot:
         
         # TODO: move these to a coach object.
         self.evaluation_history_old = []
-        self.evaluation_history_ran = []
+        self.evaluation_history_rand = []
+        self.evaluation_history_grnd = []
+        self.evaluation_history_mcts = []
         self.loss_history = []
+        
+        
         self.rand_bot = RandomBot()
+        self.grnd_bot = GreedyRandomBot()
+        self.mcts_bot = MCTSBot(num_rounds=70)
     
     def select_move(self, 
                     game_state, 
@@ -323,10 +332,13 @@ class ZeroBot:
         # Return the evaluation score of the bot along with fraction of games
         # won as black/white, the total number of games and the number of
         # epochs the bot has trained for before being evaluated.
-        return [score/num_games, 2*num_games_won_as_white/num_games,
-                2*num_games_won_as_black/num_games, 
+        return [score/num_games, 
+                num_games_won_as_white,
+                num_games_won_as_black, 
                 num_games, self.network.num_epochs()]
     
+    #TODO: Should be able to reduce these evaluation functions into a single
+    # function taking an opponent as an argument. (reduce code)
     def evaluate_against_rand_bot(self, num_games,
                                   moves_to_look_ahead = 0):
         """
@@ -337,8 +349,34 @@ class ZeroBot:
         self.evals_per_turn = moves_to_look_ahead
         print('Evaluating against random bot')
         results = self.evaluate_against_bot(self.rand_bot, num_games)
-        self.evaluation_history_ran.append(results)
+        self.evaluation_history_rand.append(results)
         self.evals_per_turn = tmp
+        
+    def evaluate_against_grnd_bot(self, num_games,
+                                  moves_to_look_ahead = 0):
+        """
+        Function to evaluate how good the current bot is against a bot who
+        makes greedy random moves.
+        """
+        tmp = self.evals_per_turn
+        self.evals_per_turn = moves_to_look_ahead
+        print('Evaluating against greedy random bot')
+        results = self.evaluate_against_bot(self.grnd_bot, num_games)
+        self.evaluation_history_grnd.append(results)
+        self.evals_per_turn = tmp
+        
+    def evaluate_against_mcts_bot(self, num_games,
+                                  moves_to_look_ahead = 0):
+        """
+        Function to evaluate how good the current bot is against a bot who
+        makes random moves.
+        """
+        tmp = self.evals_per_turn
+        self.evals_per_turn = moves_to_look_ahead
+        print('Evaluating against monte carlo tree search bot')
+        results = self.evaluate_against_bot(self.mcts_bot, num_games)
+        self.evaluation_history_mcts.append(results)
+        self.evals_per_turn = tmp        
         
     def evaluate_against_old_bot(self, num_games,
                                  moves_to_look_ahead = 0,
@@ -377,10 +415,11 @@ class ZeroBot:
         network_load_command = self.network.save_network(prefix)
         attributes = {"evals_per_turn" : self.evals_per_turn,
                       "c" : self.c,
+                      "batch_size" : self.batch_size,
                       "alpha" : self.alpha,
-                      "loss_history" : self.loss_history,
+                      "loss_history" : self.network.loss_history,
                       "evaluation_history_old" : self.evaluation_history_old,
-                      "evaluation_history_ran" : self.evaluation_history_ran,
+                      "evaluation_history_rand" : self.evaluation_history_rand,
                       "network_load_command": network_load_command}
         
         np.save(prefix + "model_attributes.npy", attributes)
@@ -395,15 +434,17 @@ class ZeroBot:
         
         self.evals_per_turn = attributes["evals_per_turn"]
         self.c = attributes["c"]
+        self.batch_size = attributes["batch_size"]
+        self.climbers = [TreeClimber(self.c) for i in range(self.batch_size)]
         self.alpha = attributes["alpha"]
-        if "loss_history" in attributes:
-            self.loss_history = attributes["loss_history"]
         self.evaluation_history_old = attributes["evaluation_history_old"]
-        self.evaluation_history_ran = attributes["evaluation_history_ran"]
+        self.evaluation_history_rand = attributes["evaluation_history_rand"]
         
         network_load_command = attributes["network_load_command"]
         exec(network_load_command)
         self.network.load_network(prefix)
+        if "loss_history" in attributes:
+            self.network.loss_history = attributes["loss_history"]
         
     def save_as_old_bot(self, prefix="model_data/old_bot/"):
         """

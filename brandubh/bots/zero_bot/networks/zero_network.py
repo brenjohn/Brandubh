@@ -131,7 +131,7 @@ class ZeroNet():
     @classmethod
     def value_head(cls, x):
         biases = True
-        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = True,
+        x = Conv2D(filters = 21, kernel_size = (1, 1), use_bias = True,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -139,12 +139,12 @@ class ZeroNet():
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
-        x = Dense(28, use_bias = biases, 
+        x = Dense(21, use_bias = biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                    kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Dense(21, use_bias = biases, 
+        x = Dense(14, use_bias = biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                   kernel_regularizer = l2(cls.alpha))(x)
@@ -156,7 +156,7 @@ class ZeroNet():
     @classmethod
     def policy_head(cls, x):
         biases = True
-        x = Conv2D(filters = 70, kernel_size = (1, 1), use_bias = biases,
+        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -182,9 +182,9 @@ class ZeroNet():
         """
         board_input = Input(shape=(7,7,6), name='board_input')
         
-        processed_board = ZeroNet.conv_layer(board_input, 35, (3, 3))
-        for i in range(14):
-            processed_board = ZeroNet.residual_layer(processed_board, 35, (3, 3))
+        processed_board = ZeroNet.conv_layer(board_input, 21, (3, 3))
+        for i in range(7):
+            processed_board = ZeroNet.residual_layer(processed_board, 21, (3, 3))
             
         policy_output = ZeroNet.policy_head(processed_board)
         value_output = ZeroNet.value_head(processed_board)
@@ -253,7 +253,7 @@ class ZeroNet():
     
     def save_network(self, prefix="model_data/"):
         self.model.save(prefix + 'zero_model.h5')
-        load_command = "from bots.zero_bot.zero_network import ZeroNet; "
+        load_command = "from networks.zero_network import ZeroNet; "
         load_command += "self.network = ZeroNet()"
         return load_command
         

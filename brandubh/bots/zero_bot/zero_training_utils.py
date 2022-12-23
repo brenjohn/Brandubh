@@ -124,49 +124,49 @@ def gain_experience(white, black, num_episodes, moves_limit = 0, eps = 0):
     print('. Playing finished')
     return experience
 
-
-def create_training_data(bot, experience):
-    """
-    A function to convert game data in an experience list to training data
-    for training the ZeroBot neural network. The training data is also
-    expanded 8 fold using symetries of the game. 
-    """
+# TODO: can remove this as it's already in zero_network. 
+# (But it is more general and should work with other networks)
+# def create_training_data(bot, experience):
+#     """
+#     A function to convert game data in an experience list to training data
+#     for training the ZeroBot neural network. The training data is also
+#     expanded 8 fold using symetries of the game. 
+#     """
     
-    # The network input and labels forming the training set will be stored in
-    # the following lists.
-    X, Y, rewards = [], [], []
+#     # The network input and labels forming the training set will be stored in
+#     # the following lists.
+#     X, Y, rewards = [], [], []
     
-    # For each episode in the experience append the relevant tensors to the X,
-    # Y and reward lsits.
-    for episode in experience:
+#     # For each episode in the experience append the relevant tensors to the X,
+#     # Y and reward lsits.
+#     for episode in experience:
         
-        Xi =  np.array(episode['boards']) 
-        num_moves = Xi.shape[0]
-        X.append(Xi)
+#         Xi =  np.array(episode['boards']) 
+#         num_moves = Xi.shape[0]
+#         X.append(Xi)
         
-        visit_counts = episode['prior_targets']
-        policy_targets = bot.network.encoder.encode_priors(visit_counts)
+#         visit_counts = episode['prior_targets']
+#         policy_targets = bot.network.encoder.encode_priors(visit_counts)
         
-        # The reward for moves decays exponentially with the number of moves
-        # between it and the winning move. Rewards for moves made by the 
-        # winning side are positive and negative for the losing side.
-        episode_rewards = episode['winner'] * np.array(episode['players'])
-        episode_rewards = (np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
-                                 )) * episode_rewards
+#         # The reward for moves decays exponentially with the number of moves
+#         # between it and the winning move. Rewards for moves made by the 
+#         # winning side are positive and negative for the losing side.
+#         episode_rewards = episode['winner'] * np.array(episode['players'])
+#         episode_rewards = (np.exp(-1*(num_moves-np.arange(num_moves)-1)/40
+#                                  )) * episode_rewards
         
-        rewards.append( episode_rewards )
-        
-        Y.append( policy_targets )
+#         rewards.append(episode_rewards)
+#         Y.append(policy_targets)
       
-    # Convert the X, Y lists into numpy arrays
-    X = np.concatenate(X)
-    Y = np.concatenate(Y)
+#     # Convert the X, Y lists into numpy arrays
+#     X = np.concatenate(X)
+#     Y = np.concatenate(Y)
     
-    # Use the bot's game encoder to expand the training data 8 fold.
-    X, Y = bot.network.encoder.expand_data(X, Y)
-    rewards = np.concatenate(8*rewards)
+#     # Use the bot's game encoder to expand the training data 8 fold.
+#     X, Y = bot.network.encoder.expand_data(X, Y)
+#     rewards = np.concatenate(8*rewards)
         
-    return X, Y, rewards
+#     return X, Y, rewards
 
 
 def save_training_data(training_data, cycle):
