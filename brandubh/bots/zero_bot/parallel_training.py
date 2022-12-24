@@ -21,8 +21,9 @@ from brandubh_zero import ZeroBot
 from greedy_random_bot import GreedyRandomBot
 from training_utils import gain_experience, save_training_data, DataManager, competition
 
-# from multiprocessing import Process, Lock
-from threading import Thread, Lock
+import multiprocessing
+from multiprocessing import Process, Lock
+# from threading import Thread, Lock
 import os
 
 from networks.zero_network import ZeroNet
@@ -46,7 +47,12 @@ def write_results(filename, results):
     file.write(l + "\n")
     file.close()
     
-def evaluation_task(bot, lock):
+def evaluation_task(lock):
+    print("creating")
+    net = ZeroNet()
+    bot = ZeroBot(evals_per_turn=700, batch_size=35, network=net)
+    compile_bot(bot)
+    
     print("loading")
     lock.acquire()
     bot.load_bot("model_data/model_curr_data/")
@@ -54,10 +60,23 @@ def evaluation_task(bot, lock):
     
     print("evaluating")
     count = 0
+    games_to_play = 100
     while True:
         moves_to_look_ahead = 1
-        bot.evaluate_against_rand_bot(7, moves_to_look_ahead)
-        write_results("test.txt", bot.evaluation_history_rand[-1])
+        bot.evaluate_against_rand_bot(games_to_play, moves_to_look_ahead)
+        write_results("rand_no_lookahead.txt", bot.evaluation_history_rand[-1])
+        
+        moves_to_look_ahead = 70
+        bot.evaluate_against_rand_bot(games_to_play, moves_to_look_ahead)
+        write_results("rand_with_lookahead.txt", bot.evaluation_history_rand[-1])
+        
+        moves_to_look_ahead = 1
+        bot.evaluate_against_grnd_bot(games_to_play, moves_to_look_ahead)
+        write_results("grnd_no_lookahead.txt", bot.evaluation_history_grnd[-1])
+        
+        moves_to_look_ahead = 70
+        bot.evaluate_against_grnd_bot(games_to_play, moves_to_look_ahead)
+        write_results("grnd_with_lookahead.txt", bot.evaluation_history_grnd[-1])
         
         # if count % 7 == 0:
         #     bot.evaluate_against_mcts_bot()
@@ -70,31 +89,28 @@ def evaluation_task(bot, lock):
 
 
 #%%
-if __name__ == '__main__':
+if __name__ == '__main__':    
     lock = Lock()
+    multiprocessing.log_to_stderr()
+    multiprocessing.set_start_method('spawn', force=True)
     
     # Initialise bot and save current weights.
     net = ZeroNet()
-    bot = ZeroBot(evals_per_turn=70, batch_size=28, network=net)
+    bot = ZeroBot(evals_per_turn=700, batch_size=35, network=net)
     compile_bot(bot)
-    
-    eval_net = ZeroNet()
-    eval_bot = ZeroBot(evals_per_turn=70, batch_size=28, network=eval_net)
-    compile_bot(eval_bot)
     
     lock.acquire()
     bot.save_bot("model_data/model_curr_data/")
     lock.release()
     
     # Spawn evaluator process
-    evaluation_process = Thread(target=evaluation_task, args=(eval_bot, lock))
+    evaluation_process = Process(target=evaluation_task, args=(lock,))
     evaluation_process.start()
     # evaluation_process.join()
     
     # Start training
-    num_episodes = 4
+    num_episodes = 8
     num_cycles = 1
-    
     move_limit = 140
     
     dm = DataManager()
