@@ -131,7 +131,7 @@ class ZeroNet():
     @classmethod
     def value_head(cls, x):
         biases = True
-        x = Conv2D(filters = 21, kernel_size = (1, 1), use_bias = True,
+        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = True,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -182,9 +182,9 @@ class ZeroNet():
         """
         board_input = Input(shape=(7,7,6), name='board_input')
         
-        processed_board = ZeroNet.conv_layer(board_input, 21, (3, 3))
+        processed_board = ZeroNet.conv_layer(board_input, 35, (3, 3))
         for i in range(7):
-            processed_board = ZeroNet.residual_layer(processed_board, 21, (3, 3))
+            processed_board = ZeroNet.residual_layer(processed_board, 35, (3, 3))
             
         policy_output = ZeroNet.policy_head(processed_board)
         value_output = ZeroNet.value_head(processed_board)

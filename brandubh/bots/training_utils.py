@@ -270,7 +270,7 @@ class DataManager():
         self.Ys = None
         self.Rs = None
         self.appended = []
-        self.max_bank_size = 280000
+        self.max_bank_size = 140000
         
     def append_data(self, training_data):
         X, Y, R = training_data
