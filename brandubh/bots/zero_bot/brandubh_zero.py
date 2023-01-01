@@ -81,7 +81,7 @@ class ZeroBot:
         
         self.rand_bot = RandomBot()
         self.grnd_bot = GreedyRandomBot()
-        self.mcts_bot = MCTSBot(num_rounds=70)
+        self.mcts_bot = MCTSBot(num_rounds=700)
     
     def select_move(self, 
                     game_state, 
@@ -325,9 +325,9 @@ class ZeroBot:
                 zero_bot_player *= -1
                
         message = '\rFinished playing {0} games. Score: w = {1}, b = {2}.'
-        print(message.format(num_games, 
-                             num_games_won_as_white, 
-                             num_games_won_as_black))
+        # print(message.format(num_games, 
+        #                      num_games_won_as_white, 
+        #                      num_games_won_as_black))
         
         # Return the evaluation score of the bot along with fraction of games
         # won as black/white, the total number of games and the number of
@@ -347,7 +347,7 @@ class ZeroBot:
         """
         tmp = self.evals_per_turn
         self.evals_per_turn = moves_to_look_ahead
-        print('Evaluating against random bot')
+        # print('Evaluating against random bot')
         results = self.evaluate_against_bot(self.rand_bot, num_games)
         self.evaluation_history_rand.append(results)
         self.evals_per_turn = tmp
@@ -360,7 +360,7 @@ class ZeroBot:
         """
         tmp = self.evals_per_turn
         self.evals_per_turn = moves_to_look_ahead
-        print('Evaluating against greedy random bot')
+        # print('Evaluating against greedy random bot')
         results = self.evaluate_against_bot(self.grnd_bot, num_games)
         self.evaluation_history_grnd.append(results)
         self.evals_per_turn = tmp
@@ -373,7 +373,7 @@ class ZeroBot:
         """
         tmp = self.evals_per_turn
         self.evals_per_turn = moves_to_look_ahead
-        print('Evaluating against monte carlo tree search bot')
+        # print('Evaluating against monte carlo tree search bot')
         results = self.evaluate_against_bot(self.mcts_bot, num_games)
         self.evaluation_history_mcts.append(results)
         self.evals_per_turn = tmp        
@@ -388,7 +388,7 @@ class ZeroBot:
         """
         tmp = self.evals_per_turn
         self.evals_per_turn = moves_to_look_ahead
-        print('Evaluating against old bot')
+        # print('Evaluating against old bot')
         old_bot = ZeroBot(1)
         old_bot.load_old_bot(prefix)
         results = self.evaluate_against_bot(old_bot, num_games)

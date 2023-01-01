@@ -56,7 +56,7 @@ class MCTSBot:
     """
     is_trainable = False
     
-    def __init__(self, num_rounds=1400, temp=1.4, use_greedy_rand=False):
+    def __init__(self, num_rounds=2100, temp=1.4, use_greedy_rand=True):
         self.num_rounds = num_rounds
         self.temperature = temp
         self.bot = GreedyRandomBot() if use_greedy_rand else RandomBot()
@@ -67,7 +67,17 @@ class MCTSBot:
         This method uses the Monte Carlo tree search to select what move
         to make next given the board position in game_state.
         """
-        root = MCTSNode(game_state.copy())
+        # root = MCTSNode(game_state.copy())
+        
+        # If a search tree is already saved, reuse the subtree relevant to
+        # the given game state. Otherwise, start with a tree consisting of a 
+        # root node only. The root node is associated with the given board 
+        # position.
+        self.update_root_to_current_game_state(game_state)
+            
+        if not self.root:
+            self.root = MCTSNode(game_state.copy())
+        root = self.root
         
         # add num_rounds nodes to the tree.
         for i in range(self.num_rounds):
@@ -78,7 +88,7 @@ class MCTSBot:
             # the current node doesn't represent a game state where the
             # game is over, select a child as the current node using uct
             while (not node.can_add_child()) and (not node.is_terminal()):
-                if node.children == []:
+                if not node.children:
                     break
                 node = self.select_child(node)
                 
@@ -97,7 +107,7 @@ class MCTSBot:
         # child node of the root with the best win rate as the next move
         best_move = None
         best_frac = -1
-        for child in root.children:
+        for child in root.children.values():
             child_frac = child.winning_frac(game_state.player)
             if child_frac > best_frac:
                 best_frac = child_frac
@@ -108,16 +118,53 @@ class MCTSBot:
             output = (output, root)
         return output
     
+    def update_root_to_current_game_state(self, game_state):
+        """
+        Checks up to the last two moves in the history of the given game 
+        state. If the root of the currently saved search tree corresponds to 
+        one of the previous game states, the current root so updated to point 
+        to the root of the subtree relevant to selecting the next move for the
+        given game state. If the root doesn't correspond to any of the 
+        previous states, or if a relevant subtree doesn't exists, the root is
+        set to None so that a new search tree can be created.
+        """
+        # If a search tree is saved.
+        if self.root:
+            # Collect the moves made since the last turn taken.
+            moves_since_last_turn = []
+            historic_state = game_state.history
+            for steps in range(3):
+                if self.root.corresponds_to(historic_state):
+                    break
+                elif historic_state.previous_state:
+                    moves_since_last_turn.insert(0, historic_state.last_move)
+                    historic_state = historic_state.previous_state
+            else:
+                # Set the root to None if it isn't in the local history.
+                self.root = None
+                return
+            
+            # Update the root with the moves made since the last turn.
+            for move in moves_since_last_turn:
+                if self.root.has_child(move):
+                    self.root = self.root.get_child(move)
+                else:
+                    # Set root to none if a relevant subtree doesn't exist.
+                    self.root = None
+                    return
+                
+            # Disconnect the root from any parent it might have.
+            self.root.parent = None
+    
     def select_child(self, node):
         """
         This method selects a child with the best uct score
         """
-        # total_rollouts = sum(child.num_rollouts for child in node.children)
         total_rollouts = node.num_rollouts
         best_score = -1
         best_child = None
         
-        for child in node.children:
+        for child in node.children.values():
             score = uct_score(total_rollouts, child.num_rollouts,
                               child.winning_frac(node.game_state.player),
                               self.temperature)
@@ -152,19 +199,21 @@ class MCTSNode:
         * move - the move that created the board position from the parent
         * win_counts - a dictionary containg number of wins for blacl/white
         * num_rollouts - number of random games that stemmed from this node
-        * children - a list of child nodes
+        * children - a dictionary of move -> child node pairs
         * unvisited_moves - a list of possible child nodes to add
     """
     
-    def __init__(self, game_state, parent=None, move=None):
+    def __init__(self, game_state, parent=None, move=None, depth=0):
         self.game_state = game_state
         self.parent = parent
         self.move = move
         self.win_counts = {-1: 0,
                             1: 0}
         self.num_rollouts = 0
-        self.children = []
-        self.unvisited_moves = game_state.legal_moves()    
+        self.children = {}
+        self.unvisited_moves = game_state.legal_moves()
+        
+        self.depth = depth
     
     def add_random_child(self):
         """
@@ -174,9 +223,15 @@ class MCTSNode:
         new_move = self.unvisited_moves.pop(index)
         new_game_state = self.game_state.copy()
         new_game_state.take_turn(Act.play(new_move))
-        new_node = MCTSNode(new_game_state, self, new_move)
-        self.children.append(new_node)
+        new_node = MCTSNode(new_game_state, self, new_move, self.depth+1)
+        self.children[new_move] = new_node
         return new_node
+    
+    def get_child(self, move):
+        return self.children[move]
+    
+    def has_child(self, move):
+        return move in self.children
         
     def record_win(self, winner):
         self.win_counts[winner] += 1
