@@ -13,11 +13,17 @@ the game, and the view, to render information on the terminal screen.
 This script uses a curses standard screen (stdscr) to get user input and calls
 functions imported from 'brandubh_view.py' to render information on it.
 """
+# This helps suppress logging messages from tensorflow (still get some info
+# messages with tensorflow 2.10)
+import logging
+logging.disable(logging.INFO)
+logging.disable(logging.WARNING)
+logging.getLogger('tensorflow').disabled = True
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+# Imports for game
 import curses
-
 from brandubh import GameState, Act
 
 from UI_utils.brandubh_view import init_view, draw_main_menu, draw_rulebook
