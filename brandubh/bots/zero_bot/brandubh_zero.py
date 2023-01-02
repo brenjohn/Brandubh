@@ -17,6 +17,7 @@ from bots.random_bot import RandomBot
 from bots.greedy_random_bot import GreedyRandomBot
 from bots.mcbot import MCTSBot
 
+from .networks.zero_network import ZeroNet
 
 
 class ZeroBot:
@@ -76,7 +77,7 @@ class ZeroBot:
             if os.path.isdir(model_dir):
                 self.load_bot(model_dir)
             else:
-                self.network = None
+                self.network = ZeroNet()
         
         # TODO: move these to a coach object.
         self.evaluation_history_old = []

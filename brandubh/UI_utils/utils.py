@@ -106,10 +106,10 @@ in this way by an enemy move is captured and removed
 from the board.
 
 
- D| . . . = . . . |D  black moves  D| . . . = . . . |D
- E| . x . . . o x |E      -->      E| . . . . x o x |E
- F| . . . . . . . |F               F| . . . . . . . |F
-                                       'o' captured
+  D| . . . = . . . |D  black moves  D| . . . = . . . |D
+  E| . x . . . o x |E      -->      E| . . . . x o x |E
+  F| . . . . . . . |F               F| . . . . . . . |F
+                                        'o' captured
 
 
 However, it is safe to move into a gap between two
@@ -145,11 +145,11 @@ can be captured if an enemy piece moves in behind it,
 trapping it against the hostile corner square.
 
 
- E| . . . . . . . |E  black moves  E| . . . . . . . |E
- F| . . . . . . . |F      -->      F| . . . . . . . |F
- G| = . x . . o = |G               G| = . . . x o = |G 
-  +---------------+                 +---------------+
-                                       'o' captured
+  E| . . . . . . . |E  black moves  E| . . . . . . . |E
+  F| . . . . . . . |F      -->      F| . . . . . . . |F
+  G| = . x . . o = |G               G| = . . . x o = |G 
+   +---------------+                 +---------------+
+                                        'o' captured
 """
 
 RULEBOOK_PAGES[6] = """
@@ -178,7 +178,7 @@ each:
 * GRand - A bot which selects winning moves if they
           exist, otherwise it chooses randomly.
 
-* MCBot - A Monte Carlo tree search bot.
+* MCBot - A Monte Carlo tree search bot (this is slow).
          
 * Zero  - A bot which uses the AlphaZero algorithm to 
           select moves. The algorithm will use a neural

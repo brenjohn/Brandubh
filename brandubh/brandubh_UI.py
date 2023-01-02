@@ -13,6 +13,8 @@ the game, and the view, to render information on the terminal screen.
 This script uses a curses standard screen (stdscr) to get user input and calls
 functions imported from 'brandubh_view.py' to render information on it.
 """
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import curses
 
@@ -20,6 +22,7 @@ from brandubh import GameState, Act
 
 from UI_utils.brandubh_view import init_view, draw_main_menu, draw_rulebook
 from UI_utils.brandubh_view import draw_player_selection_screen
+from UI_utils.brandubh_view import draw_loading_screen
 from UI_utils.brandubh_view import draw_game_screen, draw_game_over_banner
 
 from bots.random_bot import RandomBot
@@ -112,6 +115,7 @@ def select_players(stdscr):
         if key == 10:
             # When 2 players have been selected, move on.
             if len(players) == 2:
+                draw_loading_screen(stdscr)
                 break
             else:
                 players.append(option)

@@ -172,6 +172,36 @@ def draw_player_selection_screen(stdscr, players, option):
 
 
 
+def draw_loading_screen(stdscr):
+    """
+    Draws a loading screen. Used when loading a neural network.
+    """
+    # Clear the screen before drawing anything.
+    stdscr.clear()
+    
+    # Get the height and width of the window and resize the screen if either
+    # go below a certain threshold.
+    height, width = stdscr.getmaxyx()
+    if width < 64:
+        width = 64
+        curses.resizeterm(height, width)
+    if height < 31:
+        height = 31
+        curses.resizeterm(height, width)
+        
+    # Centering calculation.
+    centre_x = int(width // 2)
+    top_y = 4
+    
+    # Draw the main panel displaying the loading message.
+    draw_panel_border(stdscr, centre_x-29, top_y, 58, 10)    
+    stdscr.addstr(top_y+5, centre_x-5, "Loading...")
+    
+    # Refresh the screen
+    stdscr.refresh()
+
+
+
 def draw_game_screen(stdscr, game_pieces, 
                      cursor_x, cursor_y, 
                      player, next_move, previous_moves,
