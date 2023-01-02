@@ -30,7 +30,180 @@ TITLE = """
 (____/'(_)  `\__,_)(_) (_)`\__,_)`\___/'(_,__/'(_) (_)
 """
 
-RULEBOOK = """
+RULEBOOK_PAGES = {}
+
+RULEBOOK_PAGES[0] = """
+Brandubh (Black Raven in Irish) is a small Tafl game
+known to have been played in Ireland at least a thousand
+years ago.
+
+It is a two player game, played on a 7 x 7 board with the
+corners and centre square marked as special squares
+(marked as '=' on the board in this rulebook).
+
+                       1 2 3 4 5 6 7
+                     +---------------+
+                    A| = . . . . . = |A
+                    B| . . . . . . . |B
+                    C| . . . . . . . |C
+                    D| . . . = . . . |D
+                    E| . . . . . . . |E
+                    F| . . . . . . . |F
+                    G| = . . . . . = |G
+                     +---------------+ 
+                       1 2 3 4 5 6 7
+"""
+
+RULEBOOK_PAGES[1] = """
+The white player begins the game with four soldier pieces
+(marked as 'o') and a king (marked as 'A'). The black
+player starts with 8 soldier pieces (marked as 'x') and
+always gets the first move. The game begins with the
+pieces arranged as follows:
+    
+                       1 2 3 4 5 6 7
+                     +---------------+
+                    A| = . . x . . = |A
+                    B| . . . x . . . |B
+                    C| . . . o . . . |C
+                    D| x x o A o x x |D
+                    E| . . . o . . . |E
+                    F| . . . x . . . |F
+                    G| = . . x . . = |G
+                     +---------------+ 
+                       1 2 3 4 5 6 7
+"""
+
+RULEBOOK_PAGES[2] = """
+The aim of the game for the white player is to move their
+king to one of the special corner squares. For the black
+player, the goal is to capture the king.
+
+All the pieces move the same way: in straight lines
+forward, backwards, left or right, any number of squares
+without jumping over other pieces. Note, soldiers are not
+allowed to occupy a special square.
+
+                       1 2 3 4 5 6 7
+                     +---------------+
+                    A| = . | . . . = |A
+                    B| . . | . . . . |B   The allowed
+                    C| ----x-------- |C   movement of 'x'
+                    D| . . | = . . . |D
+                    E| . . | . . . . |E
+                    F| . . o . . . . |F
+                    G| = . . . . . = |G
+                     +---------------+ 
+                       1 2 3 4 5 6 7
+"""
+
+RULEBOOK_PAGES[3] = """
+You can capture an enemy piece by surrounding it on both
+sides with two of your own pieces. They must be standing
+on opposite sides, either in front and behind, or to the
+left and right, not diagonally. A piece that is trapped
+in this way by an enemy move is captured and removed
+from the board.
+
+
+ D| . . . = . . . |D  black moves  D| . . . = . . . |D
+ E| . x . . . o x |E      -->      E| . . . . x o x |E
+ F| . . . . . . . |F               F| . . . . . . . |F
+                                       'o' captured
+
+
+However, it is safe to move into a gap between two
+enemies without being captured. The King may participate
+in capturing, just like any other piece, and may also be
+captured just like any other piece. It is possible to
+capture more than one piece at a time.
+"""
+
+RULEBOOK_PAGES[4] = """
+The central square (known as the throne square) and the
+four corner squares are restricted. Only the king may
+occupy any of these five squares, though any soldier may
+pass through the throne square when it is empty, without
+stopping on it. 
+
+The king may return to the throne square after it has
+left it, if required. The king can be captured while on
+the throne, just the same as on any other square, by
+being surrounded on two opposite sides.
+
+Moves which put the board into a previously played
+position are disallowed.
+"""
+
+RULEBOOK_PAGES[5] = """
+In addition, the four corner squares (but not the throne
+square) are hostile squares. This means that they can
+play the part of an enemy soldier of either colour for
+the purposes of capturing. Any piece, including the king,
+that is occupying a square next to the corner square,
+can be captured if an enemy piece moves in behind it,
+trapping it against the hostile corner square.
+
+
+ E| . . . . . . . |E  black moves  E| . . . . . . . |E
+ F| . . . . . . . |F      -->      F| . . . . . . . |F
+ G| = . x . . o = |G               G| = . . . x o = |G 
+  +---------------+                 +---------------+
+                                       'o' captured
+"""
+
+RULEBOOK_PAGES[6] = """
+The game may end in a draw if:
+
+(1) either player is unable to move on their turn,
+because all remaining pieces are blocked in and unable
+to move,
+
+(2) a perpetually repeating series of moves means the
+game has reached stalemate by repetition, 
+
+(3) both players agree to a draw at any time.
+"""
+
+RULEBOOK_PAGES[7] = """
+To play a game, select the 'Play a game' option at the
+main menu. Then select a player for the black and white 
+sides by selecting one of the available options for
+each:
+    
+* User  - Moves are selected by the user.
+         
+* Rand  - A bot which randomly select moves.
+
+* GRand - A bot which selects winning moves if they
+          exist, otherwise it chooses randomly.
+
+* MCBot - A Monte Carlo tree search bot.
+         
+* Zero  - A bot which uses the AlphaZero algorithm to 
+          select moves. The algorithm will use a neural
+          network saved in the directory (not full path)
+          /bots/zerobot/model_data/trained_model_data/
+          to make predictions if one exists. If not, an
+          untrained network will be created instead.
+"""
+
+RULEBOOK_PAGES[8] = """
+During a game, the user will be repeatedly asked to
+select moves. To select a move you need to select two 
+squares: one containing a piece you want to move and
+another you want to move it to. 
+
+If you are unable to make a move you can pass your turn
+by pressing 'p'. 
+
+You can resign at any point, making the opponent the
+winner, by pressing 'r'.
+
+To quit a game and return to the menu press 'q'.
+"""
+
+OLD_RULEBOOK = """
 Brandubh (Black Raven in Irish) is a small Tafl game known to have been played 
 in Ireland at least a thousand years ago.
 

@@ -23,10 +23,11 @@ GAME_PIECES = {-1 : " X ",
                 1 : " O ",
                 2 : "qOp"}
 
-PLAYERS = [" User ",
-           " Rand ",
-           " GRand",
-           " MCBot"]
+PLAYERS = [" User   ",
+           " Rand   ",
+           " GRand  ",
+           " MCBot  ",
+           " Zero   "]
 
 OPTIONS = ["   Play a game   ",
            "Read the rulebook",
@@ -35,7 +36,8 @@ OPTIONS = ["   Play a game   ",
 PLAYER_DESCRIPTIONS = ["- Moves are selected by the user.",
                        "- A bot to randomly select moves.",
                        "- A greedy random bot.",
-                       "- A Monte Carlo tree search bot."]
+                       "- A Monte Carlo tree search bot.",
+                       "- A reinforcement learning bot."]
 
 
 
@@ -121,8 +123,8 @@ def draw_player_selection_screen(stdscr, players, option):
     if width < 64:
         width = 64
         curses.resizeterm(height, width)
-    if height < 26:
-        height = 26
+    if height < 31:
+        height = 31
         curses.resizeterm(height, width)
         
     # Centering calculation.
@@ -131,8 +133,8 @@ def draw_player_selection_screen(stdscr, players, option):
     
     # Draw two rectangles, the first to encompass the player options and the
     # second to encompass the selected players.
-    draw_panel_border(stdscr, centre_x-29, top_y, 58, 13)
-    draw_panel_border(stdscr, centre_x-29, top_y+15, 58, 3)
+    draw_panel_border(stdscr, centre_x-29, top_y, 58, 18)
+    draw_panel_border(stdscr, centre_x-29, top_y+20, 58, 3)
     
     # Print a header in the first rectangle detailing which side is being
     # selected for.
@@ -144,7 +146,7 @@ def draw_player_selection_screen(stdscr, players, option):
     stdscr.attron(curses.A_BOLD)
     stdscr.addstr(top_y+1, centre_x-16, header)
     stdscr.attroff(curses.A_BOLD)
-    stdscr.addstr(top_y+13, centre_x-28, "Press backspace to undo.")
+    stdscr.addstr(top_y+18, centre_x-28, "Press backspace to undo.")
     
     # Print the available options with the current option highlighted.
     x = centre_x-28
@@ -162,7 +164,7 @@ def draw_player_selection_screen(stdscr, players, option):
     currently_selected = "{0} as black - vs - {1} as white".format(b, w)
     x = int((width // 2) - (len(currently_selected) // 2))
     stdscr.attron(curses.A_BOLD)
-    stdscr.addstr(top_y+17, x, currently_selected)
+    stdscr.addstr(top_y+22, x, currently_selected)
     stdscr.attroff(curses.A_BOLD)
     
     # Refresh the screen
@@ -465,3 +467,41 @@ def square_position(square_x, square_y, centre_x, top_y):
     x = centre_x - 14 + 4*square_x + 1
     y = top_y + 2*square_y + 1
     return x, y
+
+
+
+def draw_rulebook(stdscr, page):
+    """
+    Draws a screen where the user can read the rules of the game.
+    """
+    # Clear the screen before drawing anything.
+    stdscr.clear()
+    
+    # Get the height and width of the window and resize the screen if either
+    # go below a certain threshold.
+    height, width = stdscr.getmaxyx()
+    if width < 64:
+        width = 64
+        curses.resizeterm(height, width)
+    if height < 31:
+        height = 31
+        curses.resizeterm(height, width)
+        
+    # Centering calculation.
+    centre_x = int(width // 2)
+    top_y = 4
+    
+    # Draw the main panel displaying the rules.
+    draw_panel_border(stdscr, centre_x-29, top_y, 58, 20)    
+    for i, line in enumerate(utils.RULEBOOK_PAGES[page].splitlines()):
+        stdscr.addstr(top_y+i, centre_x-28, line)
+    stdscr.addstr(top_y+21, centre_x-6, " Page {0} of 8 ".format(page))
+    
+    # Draw the bottom panel with the key legend.
+    draw_panel_border(stdscr, centre_x-29, top_y+22, 58, 1)
+    stdscr.addstr(top_y+23, centre_x-28, "<- := previous")
+    stdscr.addstr(top_y+23, centre_x-5, "-> := next")
+    stdscr.addstr(top_y+23, centre_x+20, "q := quit")
+    
+    # Refresh the screen
+    stdscr.refresh()

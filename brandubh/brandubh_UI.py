@@ -18,21 +18,22 @@ import curses
 
 from brandubh import GameState, Act
 
-from UI_utils.brandubh_view import init_view, draw_main_menu
+from UI_utils.brandubh_view import init_view, draw_main_menu, draw_rulebook
 from UI_utils.brandubh_view import draw_player_selection_screen
 from UI_utils.brandubh_view import draw_game_screen, draw_game_over_banner
-
 
 from bots.random_bot import RandomBot
 from bots.mcbot import MCTSBot
 from bots.greedy_random_bot import GreedyRandomBot
+from bots.zero_bot.brandubh_zero import ZeroBot
 
 
 # The bots that can be selected to play a game of brandubh.
 PLAYERS = ["user",
            RandomBot,
            GreedyRandomBot,
-           MCTSBot]
+           MCTSBot,
+           ZeroBot]
 
 
 
@@ -57,7 +58,13 @@ def main_menu(stdscr):
                 key = 0
                 continue
             
-            # If the choosen option was to quit, then exit the function.
+            # If the chosen option was to read the rules, open rulebook.
+            if option == 1:
+                view_rulebook(stdscr)
+                key = 0
+                continue
+            
+            # If the chosen option was to quit, then exit the function.
             if option == 2:
                 return
             
@@ -117,9 +124,9 @@ def select_players(stdscr):
         # Else if the user with the up or down arrow keys, increment the 
         # the current option.
         elif key == curses.KEY_DOWN:
-            option = (option + 1)%4
+            option = (option + 1) % len(PLAYERS)
         elif key == curses.KEY_UP:
-            option = (option - 1)%4
+            option = (option - 1) % len(PLAYERS)
         
         # Draw the main menu with the current option highlighted.
         draw_player_selection_screen(stdscr, players, option)
@@ -251,6 +258,27 @@ def update_user_variables(key, cursor_x, cursor_y, next_move):
     cursor_y = cursor_y%7
     
     return action, cursor_x, cursor_y, next_move
+
+
+
+def view_rulebook(stdscr):
+    key = 0
+    page = 0
+    
+    # Loop to continuely wait for input from the user until  'q' is pressed.
+    while (key != ord('q')):
+        # Else if the user hit the up or down arrow keys, increment the 
+        # the current option.
+        if key == curses.KEY_RIGHT:
+            page = min(8, page + 1)
+        elif key == curses.KEY_LEFT:
+            page = max(0, page - 1)
+            
+        # Draw the main menu with the current option highlighted.
+        draw_rulebook(stdscr, page)
+        
+        # Wait for next input from the user.
+        key = stdscr.getch()
         
 
 

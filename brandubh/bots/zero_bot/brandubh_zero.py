@@ -57,8 +57,8 @@ class ZeroBot:
     is_trainable = True
     
     def __init__(self, 
-                 evals_per_turn = 140, 
-                 batch_size = 7,
+                 evals_per_turn = 7000, 
+                 batch_size = 70,
                  c = 1.4,
                  alpha = 0.15,
                  network = None):
@@ -70,6 +70,13 @@ class ZeroBot:
         self.root = None
         if network:
             self.network = network
+        else:
+            prefix = os.path.dirname(__file__)
+            model_dir = prefix + "/model_data/trained_model_data/"
+            if os.path.isdir(model_dir):
+                self.load_bot(model_dir)
+            else:
+                self.network = None
         
         # TODO: move these to a coach object.
         self.evaluation_history_old = []
@@ -81,7 +88,7 @@ class ZeroBot:
         
         self.rand_bot = RandomBot()
         self.grnd_bot = GreedyRandomBot()
-        self.mcts_bot = MCTSBot(num_rounds=700)
+        self.mcts_bot = MCTSBot(num_rounds=350)
     
     def select_move(self, 
                     game_state, 
@@ -324,7 +331,7 @@ class ZeroBot:
                 score -= 1
                 zero_bot_player *= -1
                
-        message = '\rFinished playing {0} games. Score: w = {1}, b = {2}.'
+        # message = '\rFinished playing {0} games. Score: w = {1}, b = {2}.'
         # print(message.format(num_games, 
         #                      num_games_won_as_white, 
         #                      num_games_won_as_black))

@@ -253,7 +253,7 @@ class ZeroNet():
     
     def save_network(self, prefix="model_data/"):
         self.model.save(prefix + 'zero_model.h5')
-        load_command = "from networks.zero_network import ZeroNet; "
+        load_command = "from .networks.zero_network import ZeroNet; "
         load_command += "self.network = ZeroNet()"
         return load_command
         
