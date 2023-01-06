@@ -282,7 +282,8 @@ class ZeroBot:
         self.alpha = self.alpha_tmp
     
     def evaluate_against_bot(self, opponent_bot, num_games,
-                             max_num_of_turns = 1000):
+                             turn_limit = 700,
+                             logger = None):
         """
         This method evaluates the current bot against a given opponent bot
         by letting them play a number of games against each other. The number
@@ -296,18 +297,21 @@ class ZeroBot:
         """
         zero_bot_player = 1
         score = 0
-        num_games_won_as_black = 0
-        num_games_won_as_white = 0
+        games_won_as_black = 0
+        games_won_as_white = 0
         
         # Play 'num_games' games of brandubh
         for i in range(num_games):
-            print('\rPlaying game {0}, score: w = {1}, b = {2}.'.format(i, 
-                    num_games_won_as_white, num_games_won_as_black),end='')
+            if logger:
+                msg = 'Playing game {0}, score: w = {1}, b = {2}.'
+                logger.info(msg.format(i, 
+                                       games_won_as_white, 
+                                       games_won_as_black))
             game = GameState.new_game()
             
             # Get both bots to play a game of brandubh.
             turns_taken = 0
-            while game.is_not_over() and turns_taken < max_num_of_turns:
+            while game.is_not_over() and turns_taken < turn_limit:
                 if game.player == zero_bot_player:
                     action = self.select_move(game)
                 else:
@@ -319,30 +323,31 @@ class ZeroBot:
             # At the end of the game, increment counts keeping track of how
             # many games the current bot won against the opponent bot and 
             # get the bots to switch sides for the next game.
-            if turns_taken < max_num_of_turns:
+            if turns_taken < turn_limit:
                 score += zero_bot_player*game.winner
                 if zero_bot_player == game.winner:
                     if zero_bot_player == 1:
-                        num_games_won_as_white += 1
+                        games_won_as_white += 1
                     else:
-                        num_games_won_as_black += 1     
+                        games_won_as_black += 1     
                 zero_bot_player *= -1
                         
             else:
                 score -= 1
                 zero_bot_player *= -1
-               
-        # message = '\rFinished playing {0} games. Score: w = {1}, b = {2}.'
-        # print(message.format(num_games, 
-        #                      num_games_won_as_white, 
-        #                      num_games_won_as_black))
+        
+        if logger:
+            message = 'Finished playing {0} games. Score: w = {1}, b = {2}.'
+            logger.info(message.format(num_games, 
+                                       games_won_as_white, 
+                                       games_won_as_black))
         
         # Return the evaluation score of the bot along with fraction of games
         # won as black/white, the total number of games and the number of
         # epochs the bot has trained for before being evaluated.
         return [score/num_games, 
-                num_games_won_as_white,
-                num_games_won_as_black, 
+                games_won_as_white,
+                games_won_as_black, 
                 num_games, self.network.num_epochs()]
     
     #TODO: Should be able to reduce these evaluation functions into a single
@@ -355,7 +360,6 @@ class ZeroBot:
         """
         tmp = self.evals_per_turn
         self.evals_per_turn = moves_to_look_ahead
-        # print('Evaluating against random bot')
         results = self.evaluate_against_bot(self.rand_bot, num_games)
         self.evaluation_history_rand.append(results)
         self.evals_per_turn = tmp
@@ -368,21 +372,24 @@ class ZeroBot:
         """
         tmp = self.evals_per_turn
         self.evals_per_turn = moves_to_look_ahead
-        # print('Evaluating against greedy random bot')
         results = self.evaluate_against_bot(self.grnd_bot, num_games)
         self.evaluation_history_grnd.append(results)
         self.evals_per_turn = tmp
         
     def evaluate_against_mcts_bot(self, num_games,
-                                  moves_to_look_ahead = 0):
+                                  moves_to_look_ahead = 0,
+                                  turn_limit = 350,
+                                  logger = None):
         """
         Function to evaluate how good the current bot is against a bot who
         makes random moves.
         """
         tmp = self.evals_per_turn
         self.evals_per_turn = moves_to_look_ahead
-        # print('Evaluating against monte carlo tree search bot')
-        results = self.evaluate_against_bot(self.mcts_bot, num_games)
+        results = self.evaluate_against_bot(self.mcts_bot, 
+                                            num_games,
+                                            turn_limit,
+                                            logger)
         self.evaluation_history_mcts.append(results)
         self.evals_per_turn = tmp        
         
@@ -735,11 +742,6 @@ class TreeClimber:
         Christopher D. Rosin - Multi-armed Bandits with Episode Context
         """
         c_sqrt_total_n = np.sqrt(node.total_visit_count) * self.c
-        
-        # cb = 1400
-        # ci = 1.4
-        # c = np.log((1 + node.total_visit_count + cb)/cb) + ci
-        # c_sqrt_total_n *= c
         
         def branch_score(move):
             q = node.expected_value(move)

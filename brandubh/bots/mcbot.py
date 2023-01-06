@@ -11,7 +11,6 @@ carlo tree search
 
 import math
 import random
-import copy
 from brandubh import Act
 from .random_bot import RandomBot
 from .greedy_random_bot import GreedyRandomBot
@@ -181,7 +180,7 @@ class MCTSBot:
         moves are selected at random. The method returns the winner of the
         game when it is over.
         """
-        game = copy.deepcopy(game_state)
+        game = game_state.copy()
         
         while game.is_not_over():
             random_move = self.bot.select_move(game)
