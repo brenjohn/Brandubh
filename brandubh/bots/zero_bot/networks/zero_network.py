@@ -20,11 +20,15 @@ for the neural network and to convert the output of the network to a
 dictionary of move-value pairs. It also has methods for expanding training 
 data for the network.
 """
+# Disable tensorflow logging messages:
+import logging
+import os
+logging.disable(logging.INFO)
+logging.disable(logging.WARNING)
+logging.getLogger('tensorflow').disabled = True
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-import sys
-sys.path.append("..")
-sys.path.append("../..")
-
+# Normal imports:
 import numpy as np
 import copy
 
@@ -34,6 +38,7 @@ from keras.layers import LeakyReLU, add, Softmax, Reshape
 from keras.models import load_model
 from keras.regularizers import l2
 from keras.callbacks import EarlyStopping, LearningRateScheduler
+from keras.optimizers import Adam
 
 import tensorflow as tf
 tf.get_logger().setLevel('ERROR')
@@ -193,6 +198,11 @@ class ZeroNet():
                       outputs=[policy_output, value_output])
         return model
     
+    def compile_network(self, policy_weight, value_weight):
+        self.model.compile(optimizer = Adam(),
+                           loss = ['categorical_crossentropy', 'mse'],
+                           loss_weights = [policy_weight, value_weight])
+    
     def predict(self, game_states):
         """
         This method uses the neural network to predict the value of a board 
@@ -278,7 +288,6 @@ class ZeroNet():
         # else:
         schedule = lambda epoch, lr : (1/7)**(5 + (n + epoch)//700)
         return LearningRateScheduler(schedule)
-    
     
     def save_losses(self, loss_history):
         """
