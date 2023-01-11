@@ -7,9 +7,6 @@ Created on Mon Dec 30 17:52:41 2019
 
 This file defines a bot that plays brandubh by playing random moves each turn.
 """
-import sys
-sys.path.append("..")
-
 import random
 from ..brandubh import Act
 

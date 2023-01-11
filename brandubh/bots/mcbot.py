@@ -8,9 +8,6 @@ Created on Tue Dec 31 12:14:45 2019
 This file contains classes defining a bot that plays brandubh using a monte
 carlo tree search
 """
-import sys
-sys.path.append("..")
-
 import math
 import random
 from ..brandubh import Act

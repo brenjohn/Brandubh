@@ -8,10 +8,6 @@ Created on Sun Jun 14 13:49:08 2020
 This file contains classes used to create a bot that can play brandubh using
 the AlphaGo-Zero approach.
 """
-import sys
-sys.path.append("..")
-sys.path.append("../..")
-
 import numpy as np
 import os
 
@@ -19,7 +15,6 @@ from ...brandubh import Act, GameState
 from ..random_bot import RandomBot
 from ..greedy_random_bot import GreedyRandomBot
 from ..mcbot import MCTSBot
-
 from .networks.zero_network import ZeroNet
 
 
