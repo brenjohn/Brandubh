@@ -17,7 +17,7 @@ class BrandubhView:
     
     def __init__(self, stdscr):
         # Declaration of constants used to draw different screens of the game.
-        self.stdscr
+        self.stdscr = stdscr
         self.TITLE_LINES = utils.TITLE.split("\n")
         self.TITLE_LENGTH = max([len(line) for line in self.TITLE_LINES])
         self.SUBTITLE = "F\u00e1ilte go brandubh / Welcome to brandubh"
@@ -132,8 +132,8 @@ class BrandubhView:
         
         # Draw two rectangles, the first to encompass the player options and
         # the second to encompass the selected players.
-        self.draw_panel_border(stdscr, centre_x-29, top_y, 58, 18)
-        self.draw_panel_border(stdscr, centre_x-29, top_y+20, 58, 3)
+        self.draw_panel_border(centre_x-29, top_y, 58, 18)
+        self.draw_panel_border(centre_x-29, top_y+20, 58, 3)
         
         # Print a header in the first rectangle detailing which side is being
         # selected for.
@@ -181,7 +181,7 @@ class BrandubhView:
         top_y = 4
         
         # Draw the main panel displaying the loading message.
-        self.draw_panel_border(stdscr, centre_x-29, top_y, 58, 10)    
+        self.draw_panel_border(centre_x-29, top_y, 58, 10)    
         stdscr.addstr(top_y+5, centre_x-5, "Loading...")
         
         # Refresh the screen
@@ -225,12 +225,12 @@ class BrandubhView:
         top_y = 4
         
         # Draw the board, the info panels and the game pieces.
-        self.draw_board(stdscr, centre_x, top_y)
-        self.draw_left_panel(stdscr, centre_x, top_y, player, *next_move)
-        self.draw_right_panel(stdscr, centre_x, top_y, previous_moves)
-        self.draw_bottom_panel(stdscr, centre_x, top_y, info_message)
-        self.draw_game_pieces(stdscr, centre_x, top_y, game_pieces)
-        self.draw_cursor(stdscr, cursor_x, cursor_y, centre_x, top_y)
+        self.draw_board(centre_x, top_y)
+        self.draw_left_panel(centre_x, top_y, player, *next_move)
+        self.draw_right_panel(centre_x, top_y, previous_moves)
+        self.draw_bottom_panel(centre_x, top_y, info_message)
+        self.draw_game_pieces(centre_x, top_y, game_pieces)
+        self.draw_cursor(cursor_x, cursor_y, centre_x, top_y)
 
         # Move the terminal cursor to the origin when drawing is finished and 
         # refresh the screen
@@ -322,7 +322,7 @@ class BrandubhView:
         """
         # Draw the panel border.
         stdscr = self.stdscr
-        self.draw_panel_border(stdscr, centre_x-31, top_y, 11, 13)
+        self.draw_panel_border(centre_x-31, top_y, 11, 13)
         
         # Print the panel header indicating who is making the next move and
         # body displaying the next move which moves the 'piece' to the 'target'
@@ -354,7 +354,7 @@ class BrandubhView:
         """
         # Draw the panel border.
         stdscr = self.stdscr
-        self.draw_panel_border(stdscr, centre_x+20, top_y, 11, 13)
+        self.draw_panel_border(centre_x+20, top_y, 11, 13)
         
         # Print a header indicating the format of the printed move 
         # (ie move number: move in board coordinates)
@@ -379,7 +379,7 @@ class BrandubhView:
         """
         # Draw the panel border and print the relevant info.
         stdscr = self.stdscr
-        self.draw_panel_border(stdscr, centre_x-31, top_y+16, 62, 3)
+        self.draw_panel_border(centre_x-31, top_y+16, 62, 3)
         stdscr.addstr(top_y+17, centre_x-29, message)
         stdscr.addstr(top_y+19, centre_x-29, "p := pass")
         stdscr.addstr(top_y+19, centre_x-5, "r := resign")
@@ -458,7 +458,7 @@ class BrandubhView:
         centre_x = int(width // 2)
         
         # Draw the 'game over' banner.
-        self.draw_panel_border(stdscr, centre_x-12, 1, 24, 1)
+        self.draw_panel_border(centre_x-12, 1, 24, 1)
         winner_name = "White" if winner == 1 else "Black"
         stdscr.attron(curses.A_BOLD)
         stdscr.addstr(2, centre_x-10, "Game Over: {0} Wins".format(winner_name))
@@ -485,13 +485,13 @@ class BrandubhView:
         top_y = 4
         
         # Draw the main panel displaying the rules.
-        self.draw_panel_border(stdscr, centre_x-29, top_y, 58, 20)    
+        self.draw_panel_border(centre_x-29, top_y, 58, 20)    
         for i, line in enumerate(utils.RULEBOOK_PAGES[page].splitlines()):
             stdscr.addstr(top_y+i, centre_x-28, line)
         stdscr.addstr(top_y+21, centre_x-6, " Page {0} of 8 ".format(page))
         
         # Draw the bottom panel with the key legend.
-        self.draw_panel_border(stdscr, centre_x-29, top_y+22, 58, 1)
+        self.draw_panel_border(centre_x-29, top_y+22, 58, 1)
         stdscr.addstr(top_y+23, centre_x-28, "<- := previous")
         stdscr.addstr(top_y+23, centre_x-5, "-> := next")
         stdscr.addstr(top_y+23, centre_x+20, "q := quit")
