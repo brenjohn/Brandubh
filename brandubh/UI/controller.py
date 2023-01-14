@@ -5,13 +5,13 @@ Created on Wed Mar 17 16:10:56 2021
 
 @author: john
 
-This script creates a UI to allow the user to create and start a game of
-brandubh. It is responsibile for handling user input, passing instructions to
-both the model (ie the GameState of the game and any bots playing), to progress
-the game, and the view, to render information on the terminal screen.
+This file defines the BrandubhController class which a user can interface with
+and be used to create and start a game of brandubh. It is responsibile for
+handling user input, passing instructions to both the model (ie the GameState
+of the game and any bots playing) to progress the game, and the BrandubhView
+class which renders information on the terminal screen.
 
-This script uses a curses standard screen (stdscr) to get user input and calls
-functions imported from 'brandubh_view.py' to render information on it.
+This file uses a curses standard screen (stdscr) to get user input.
 """
 import curses
 from .view import BrandubhView
@@ -25,6 +25,10 @@ from ..bots.zero_bot.brandubh_zero import ZeroBot
 class BrandubhController:
     
     def __init__(self, stdscr):
+        """
+        Initialises attributes including the BrandubhView instance before
+        starting the main menu.
+        """
         self.stdscr = stdscr
         self.view = BrandubhView(stdscr)
         # The bots that can be selected to play a game of brandubh.
@@ -38,9 +42,8 @@ class BrandubhController:
         
     def main_menu(self):
         """
-        This function controls the main menu screen where the user can select
-        to play a game, read the rules of the game or exit the game. It also
-        initialises curses variables that are used for the duration of the game.
+        This method controls the main menu screen where the user can select to
+        play a game, read the rules of the game or exit the game.
         """
         # Initialise the key variable recording the last key entered by the
         # user and the current option from the main menu.
@@ -165,7 +168,10 @@ class BrandubhController:
             # Ask the proper agent to select the next move.
             agent = white if game.player == 1 else black
             if agent == "user":
-                tmp = self.update_user_variables(key, cursor_x, cursor_y, next_move)
+                tmp = self.update_user_variables(key,
+                                                 cursor_x,
+                                                 cursor_y,
+                                                 next_move)
                 action, cursor_x, cursor_y, next_move = tmp
             else:
                 if bot_to_take_next_turn:
@@ -185,7 +191,8 @@ class BrandubhController:
             else:
                 info_message = None
             
-            # Get the last 6 moves from the game history to print to the screen.
+            # Get the last 6 moves from the game history to print to the
+            # screen.
             last_6_moves = []
             old_state = game.history
             while old_state.last_move != None and len(last_6_moves) < 6:
@@ -259,10 +266,14 @@ class BrandubhController:
     
     
     def open_rulebook(self):
+        """
+        This function will display the rulebook for the user and update the
+        pages according to the input provided by them.
+        """
         key = 0
         page = 0
         
-        # Loop to continuely wait for input from the user until  'q' is pressed.
+        # Loop to continuely wait for input from the user until 'q' is pressed.
         while (key != ord('q')):
             # Else if the user hit the up or down arrow keys, increment the 
             # the current option.

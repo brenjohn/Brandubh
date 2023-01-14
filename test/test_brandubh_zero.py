@@ -9,7 +9,7 @@ Created on Tue Jan 10 20:07:46 2023
 import unittest
 import numpy as np
 
-from brandubh.brandubh import GameState
+from brandubh.game import GameState
 from brandubh.bots.zero_bot.networks.zero_network import ZeroNet
 from brandubh.bots.zero_bot.brandubh_zero import ZeroBot
         

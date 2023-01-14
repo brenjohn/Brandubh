@@ -11,7 +11,7 @@ the AlphaGo-Zero approach.
 import numpy as np
 import os
 
-from ...brandubh import Act, GameState
+from ...game import Act, GameState
 from ..random_bot import RandomBot
 from ..greedy_random_bot import GreedyRandomBot
 from ..mcbot import MCTSBot

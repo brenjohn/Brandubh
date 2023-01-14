@@ -8,7 +8,7 @@ Created on Sat Jun  5 12:30:50 2021
 This file defines a bot that greedily selects random moves to play in brandubh.
 """
 import random
-from ..brandubh import Act
+from ..game import Act
 
 class GreedyRandomBot:
     """

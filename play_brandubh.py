@@ -5,19 +5,20 @@ Created on Fri Jan 13 23:38:28 2023
 
 @author: john
 
-This script creates a UI to allow the user to create and start a game of
-brandubh. It is responsibile for handling user input, passing instructions to
-both the model (ie the GameState of the game and any bots playing), to progress
-the game, and the view, to render information on the terminal screen.
+This script creates a BrandubhController object which will allow the user to
+play a game of brandubh against various bots and read the rules of the game.
 
-This script uses a curses standard screen (stdscr) to get user input and calls
-functions imported from 'brandubh_view.py' to render information on it.
+The python package curses is used to get user input and render information to
+the terminal.
 """
 import curses
 from brandubh.UI.controller import BrandubhController
 
 
 def main():
+    """
+    Create a BrandubhController object which starts the application.
+    """
     curses.wrapper(BrandubhController)
     print('Sl\u00e1n / Goodbye')
 

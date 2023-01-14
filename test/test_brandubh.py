@@ -7,7 +7,7 @@ Created on Sat May 15 15:19:41 2021
 """
 
 import unittest
-from brandubh.brandubh import Act, GameSet, GameState
+from brandubh.game import Act, GameSet, GameState
 
 
 class TestAct(unittest.TestCase):

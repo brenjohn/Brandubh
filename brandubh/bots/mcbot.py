@@ -10,7 +10,7 @@ carlo tree search
 """
 import math
 import random
-from ..brandubh import Act
+from ..game import Act
 from .random_bot import RandomBot
 from .greedy_random_bot import GreedyRandomBot
 

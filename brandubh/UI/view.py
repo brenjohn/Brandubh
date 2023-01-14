@@ -157,7 +157,8 @@ class BrandubhView:
             stdscr.attroff(curses.color_pair(colour))
             stdscr.addstr(y + 3 + 3*op, x+13, self.PLAYER_DESCRIPTIONS[op])
             
-        # Print which options have been selected so far in the second rectangle.
+        # Print which options have been selected so far in the second
+        # rectangle.
         b = self.PLAYERS[players[0]] if len(players) > 0 else "__"
         w = self.PLAYERS[players[1]] if len(players) > 1 else "__"
         currently_selected = "{0} as black - vs - {1} as white".format(b, w)
@@ -315,30 +316,30 @@ class BrandubhView:
             stdscr.addch(y+2, x+1+4*i, ch)
     
     
-    def draw_left_panel(self, centre_x, top_y, player, piece=None, target=None):
+    def draw_left_panel(self, centre_x, top, player, piece=None, target=None):
         """
         Draws the panel to the left of the game board which is used to indicate
         who is making the next move and what the user selected next move is.
         """
         # Draw the panel border.
         stdscr = self.stdscr
-        self.draw_panel_border(centre_x-31, top_y, 11, 13)
+        self.draw_panel_border(centre_x-31, top, 11, 13)
         
         # Print the panel header indicating who is making the next move and
         # body displaying the next move which moves the 'piece' to the 'target'
         # square. Coordinates for the piece and target square are translated
         # into board coordinates.
         player = "White" if player == 1 else "Black"
-        stdscr.addstr(top_y+2, centre_x-30, "{0} to".format(player))
-        stdscr.addstr(top_y+3, centre_x-30, "move next:")
-        stdscr.addstr(top_y+5, centre_x-30, "From: ")
+        stdscr.addstr(top + 2, centre_x-30, "{0} to".format(player))
+        stdscr.addstr(top + 3, centre_x-30, "move next:")
+        stdscr.addstr(top + 5, centre_x-30, "From: ")
         if piece:
             piece_str = "{0}{1}".format("ABCDEFG"[piece[1]], piece[0]+1)
             stdscr.addstr(piece_str)
         else:
             stdscr.addch(curses.ACS_S9)
             stdscr.addch(curses.ACS_S9)
-        stdscr.addstr(top_y+7, centre_x-30, "To:   ")
+        stdscr.addstr(top+7, centre_x-30, "To:   ")
         if target:
             target_str = "{0}{1}".format("ABCDEFG"[target[1]], target[0]+1)
             stdscr.addstr(target_str)
@@ -411,7 +412,7 @@ class BrandubhView:
             stdscr.addch(curses.ACS_VLINE)
     
     
-    def draw_game_pieces(self, centre_x, top_y, game_pieces):
+    def draw_game_pieces(self, centre_x, top, game_pieces):
         """
         Draws the game pieces in the locations indicated by the dict
         'game_pieces'.
@@ -421,7 +422,7 @@ class BrandubhView:
         for position, piece in game_pieces.items():
             if piece != 0: # Skip empty squares. 
                 square_x, square_y = position
-                x, y = self.square_position(square_x, square_y, centre_x, top_y)
+                x, y = self.square_position(square_x, square_y, centre_x, top)
                 piece_symbol = self.GAME_PIECES[piece]
                 colour = 1 if piece < 0 else 2
                 stdscr.attron(curses.color_pair(colour))
@@ -461,7 +462,7 @@ class BrandubhView:
         self.draw_panel_border(centre_x-12, 1, 24, 1)
         winner_name = "White" if winner == 1 else "Black"
         stdscr.attron(curses.A_BOLD)
-        stdscr.addstr(2, centre_x-10, "Game Over: {0} Wins".format(winner_name))
+        stdscr.addstr(2,centre_x-10, "Game Over: {0} Wins".format(winner_name))
         stdscr.attroff(curses.A_BOLD)
     
     
