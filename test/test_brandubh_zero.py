@@ -11,6 +11,7 @@ import numpy as np
 
 from brandubh.game import GameState
 from brandubh.bots.zero_bot.networks.zero_network import ZeroNet
+from brandubh.bots.zero_bot.networks.dual_network import DualNet
 from brandubh.bots.zero_bot.brandubh_zero import ZeroBot
         
         
@@ -19,7 +20,7 @@ class TestBrandubhZero(unittest.TestCase):
     def setUp(self):
         self.game = GameState.new_game()
 
-    def test_play(self):
+    def test_play_ZeroNet(self):
         net = ZeroNet()
         bot = ZeroBot(evals_per_turn=140, batch_size=35, network=net)
         loss_weights = (1.0, 0.1)
@@ -38,6 +39,26 @@ class TestBrandubhZero(unittest.TestCase):
         X, Y, R = bot.network.create_training_data(exp)
         self.assertTrue(len(X) == len(Y))
         self.assertTrue(len(X) == len(R))
+    
+    # def test_play_DualNet(self):
+    #     net = DualNet()
+    #     bot = ZeroBot(evals_per_turn=140, batch_size=35, network=net)
+    #     loss_weights = (1.0, 0.1)
+    #     bot.compile_network(loss_weights)
+        
+    #     move = bot.select_move(self.game)
+    #     self.assertTrue(move, "No move returned by bot")
+        
+    #     # Run a second time to test search tree reuse.
+    #     self.game.take_turn_with_no_checks(move)
+    #     move = bot.select_move(self.game)
+    #     self.assertTrue(move, "No move returned by bot")
+
+    #     # Test data expansion.
+    #     exp = self.get_dummy_experience()
+    #     X, Y, R = bot.network.create_training_data(exp)
+    #     self.assertTrue(len(X) == len(Y))
+    #     self.assertTrue(len(X) == len(R))
         
     def get_dummy_experience(self):
         boards = np.array([[[0., 0., 0., 0., 0., 1.],

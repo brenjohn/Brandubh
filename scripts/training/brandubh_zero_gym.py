@@ -26,7 +26,8 @@ from multiprocessing import Process, Manager
 
 from brandubh.bots.zero_bot.brandubh_zero import ZeroBot
 from brandubh.bots.zero_bot.networks.zero_network import ZeroNet
-from brandubh.bots.training_utils import gain_experience, save_training_data, DataManager
+from brandubh.bots.training_utils import gain_experience
+from brandubh.bots.training_utils import save_training_data, DataManager
 
 
 

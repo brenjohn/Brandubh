@@ -15,7 +15,7 @@ This file uses a curses standard screen (stdscr) to get user input.
 """
 import curses
 from .view import BrandubhView
-from ..brandubh import GameState, Act
+from ..game import GameState, Act
 
 from ..bots.random_bot import RandomBot
 from ..bots.mcbot import MCTSBot
@@ -29,15 +29,18 @@ class BrandubhController:
         Initialises attributes including the BrandubhView instance before
         starting the main menu.
         """
-        self.stdscr = stdscr
-        self.view = BrandubhView(stdscr)
         # The bots that can be selected to play a game of brandubh.
         self.PLAYERS = ["user",
                         RandomBot,
                         GreedyRandomBot,
                         MCTSBot,
                         ZeroBot]
-        self.main_menu()
+        # If a standard screen is given, initilise a view object and open the
+        # main menu. For unit tests stdscr will be None.
+        if stdscr:
+            self.stdscr = stdscr
+            self.view = BrandubhView(stdscr)
+            self.main_menu()
         
         
     def main_menu(self):
@@ -152,6 +155,7 @@ class BrandubhController:
         invokes the appropriate functions to update the game state and render
         the current board on the screen.
         """
+        # TODO: Encapsulation is often broken here. (eg game.game_set.board)
         # Initialise variables to track the last key pressed, the cursor
         # location on the game board, an array of coordinates specifying the
         # next move and create an new game of brandubh.

@@ -7,16 +7,19 @@ Created on Sun Jun 28 17:11:37 2020
 Running this script provides the user with a terminal interface for setting
 up and playing a game of brandubh. 
 """
+import os
+import sys
+sys.path.append("..")
+sys.path.append("../..")
 
 import time
-import UI_utils.utils as utils
-import os
+import brandubh.UI.utils as utils
 
-from brandubh import GameState
-from bots.random_bot import RandomBot
-from bots.mcbot import MCTSBot
-from bots.zero_bot.brandubh_zero import ZeroBot
-from bots.zero_bot.zero_network import ZeroNet
+from brandubh.game import GameState
+from brandubh.bots.random_bot import RandomBot
+from brandubh.bots.mcbot import MCTSBot
+from brandubh.bots.zero_bot.brandubh_zero import ZeroBot
+from brandubh.bots.zero_bot.networks.zero_network import ZeroNet
 
 #os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
@@ -119,7 +122,7 @@ def main():
         
         elif option == 'rules':
             print(chr(27) + "[2J")
-            print(utils.RULEBOOK)
+            print(utils.OLD_RULEBOOK)
             time.sleep(0.2)
             input('--')
             

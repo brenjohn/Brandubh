@@ -11,7 +11,7 @@ a game of Brandubh.
 
 import re
 
-from ..brandubh import Act
+from ..game import Act
 
 # This string and dictionary are used for printing an image of the board
 COLS = 'ABCDEFG'
