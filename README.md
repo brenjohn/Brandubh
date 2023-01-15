@@ -25,10 +25,9 @@ cd Brandubh
 git checkout ZeroBot-15jan2022
 ```
 
-To play the game run the brandubh_UI script located in the brandubh directory:
+To play the game run the play_brandubh script located in the top level directory:
 ```
-cd brandubh
-python brandubh_UI.py
+python play_brandubh.py
 ```
 
 # Running tests
