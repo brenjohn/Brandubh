@@ -9,7 +9,7 @@ https://www.ancientgames.org/hnefatafl-brandubh/
 
 First, create a new conda environment with the required dependencies installed:
 ```
-conda create --name brandubh python=3
+conda create --name brandubh python=3.8
 conda activate brandubh
 conda install numpy tensorflow=2.4.1 keras=2.4.3
 ```
