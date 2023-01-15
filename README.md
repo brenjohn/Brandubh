@@ -9,7 +9,7 @@ https://www.ancientgames.org/hnefatafl-brandubh/
 
 First, create a new conda environment with the required dependencies installed:
 ```
-conda create --name brandubh python=3
+conda create --name brandubh python=3.8
 conda activate brandubh
 conda install numpy tensorflow=2.4.1 keras=2.4.3
 ```
@@ -22,11 +22,25 @@ git clone https://github.com/brenjohn/Brandubh.git
 To download a trained bot to play against checkout the ZeroBot branch:
 ```
 cd Brandubh
-git checkout ZeroBot-jan2022
+git checkout ZeroBot-15jan2022
 ```
 
 To play the game run the brandubh_UI script located in the brandubh directory:
 ```
 cd brandubh
 python brandubh_UI.py
+```
+
+# Running tests
+
+To run unit tests use the following command from the top level directory:
+```
+python -m unittest
+```
+
+If the coverage package is installed, a test coverage report can be generated
+with:
+```
+python -m coverage run -m unittest
+python -m coverage html --omit=/tmp*
 ```

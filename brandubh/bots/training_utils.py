@@ -12,7 +12,7 @@ import numpy as np
 import random
 import os
 
-from brandubh import GameState
+from ..game import GameState
 
 
 

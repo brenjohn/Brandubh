@@ -20,10 +20,13 @@ for the neural network and to convert the output of the network to a
 dictionary of move-value pairs. It also has methods for expanding training 
 data for the network.
 """
-
-import sys
-sys.path.append("..")
-sys.path.append("../..")
+# Disable tensorflow logging messages:
+import logging
+import os
+logging.disable(logging.INFO)
+logging.disable(logging.WARNING)
+logging.getLogger('tensorflow').disabled = True
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import numpy as np
 import copy
@@ -32,6 +35,7 @@ from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, Flatten
 from keras.layers import LeakyReLU, add
 from keras.models import load_model
+from keras.optimizers import Adam
 
 import tensorflow as tf
 
@@ -169,7 +173,15 @@ class DualNet():
                       outputs=[policy_output, value_output])
         return model
     
-    def predict(self, game_state):
+    def compile_network(self, policy_weight, value_weight):
+        self.white_model.compile(optimizer = Adam(),
+                                 loss = ['categorical_crossentropy', 'mse'],
+                                 loss_weights = [policy_weight, value_weight])
+        self.black_model.compile(optimizer = Adam(),
+                                 loss = ['categorical_crossentropy', 'mse'],
+                                 loss_weights = [policy_weight, value_weight])
+    
+    def predict(self, game_states):
         """
         This method uses the neural networks to predict the value of a board 
         position and the prior distribution over possible next moves.
@@ -177,26 +189,61 @@ class DualNet():
         # First encode the game state as a tensor which can be passed to the
         # network. Then get the network to make the prediction and decode the
         # network's policy output into a dictionary of move-prior pairs
-        input_tensor, pieces = self.encoder.encode(game_state, True)
-        input_tensor = input_tensor.reshape(1, 7, 7, 3)
-        input_tensor = input_tensor.astype(np.float32)
-        if game_state.player == -1:
-            self.black_intrp.set_tensor(self.black_inp_ind, input_tensor)
-            self.black_intrp.invoke()
-            priors = self.black_intrp.get_tensor(self.black_pol_ind)
-            value = self.black_intrp.get_tensor(self.black_val_ind)
-        else:
-            self.white_intrp.set_tensor(self.white_inp_ind, input_tensor)
-            self.white_intrp.invoke()
-            priors = self.white_intrp.get_tensor(self.white_pol_ind)
-            value = self.white_intrp.get_tensor(self.white_val_ind)
-        move_priors = self.encoder.decode_policy(priors[0], pieces)
+        white_states = [self.encoder.encode(s, True) for s in game_states 
+                        if s.player == 1]
+        white_tensors = [s[0].reshape(1, 7, 7, 6) for s in white_states]
+        white_tensor = np.concatenate(white_tensors)
+        white_tensor = white_tensor.astype(np.float32)
         
-        # Normalise the move prior distribution
-        N = sum(move_priors.values())
-        for (move, prior) in move_priors.items():
-            move_priors[move] = prior/N
-        return move_priors, value[0][0]
+        black_states = [self.encoder.encode(s, True) for s in game_states 
+                        if s.player ==-1]
+        black_tensors = [s[0].reshape(1, 7, 7, 6) for s in black_states]
+        black_tensor = np.concatenate(black_tensors)
+        black_tensor = black_tensor.astype(np.float32)
+        
+        if black_tensor:
+            if self.batch_size != black_tensor.shape[0]:
+                self.batch_size = black_tensor.shape[0]
+                input_det = self.intrp.get_input_details()[0]
+                self.intrp.resize_tensor_input(input_det['index'], black_tensor.shape)
+                self.intrp.allocate_tensors()
+            
+            self.black_intrp.set_tensor(self.black_inp_ind, black_tensor)
+            self.black_intrp.invoke()
+            black_priors = self.black_intrp.get_tensor(self.black_pol_ind)
+            black_values = self.black_intrp.get_tensor(self.black_val_ind)
+            
+        if white_tensor:
+            if self.batch_size != white_tensor.shape[0]:
+                self.batch_size = white_tensor.shape[0]
+                input_det = self.intrp.get_input_details()[0]
+                self.intrp.resize_tensor_input(input_det['index'], white_tensor.shape)
+                self.intrp.allocate_tensors()
+            
+            self.white_intrp.set_tensor(self.white_inp_ind, white_tensor)
+            self.white_intrp.invoke()
+            white_priors = self.white_intrp.get_tensor(self.white_pol_ind)
+            white_values = self.white_intrp.get_tensor(self.white_val_ind)
+        
+        
+        priors = None # merge white and black priors correctly
+        values = None # merge white and black values correctly
+        encoded_states = None # merge white and black encoded states correctly
+        
+        states_pieces = [s[1] for s in encoded_states]
+        move_priors = [self.encoder.decode_policy(p, pieces) 
+                       for p, pieces in zip(priors, states_pieces)]
+        
+        # Restrict and noramlise prior distributions over possible moves.
+        for priors in move_priors:
+            N = sum(priors.values())
+            for (move, prior) in priors.items():
+                priors[move] /= N
+        
+        predictions = [(priors, value[0]) 
+                       for priors, value in zip(move_priors, values)]
+        
+        return predictions
     
     def save_network(self, prefix="model_data/"):
         self.black_model.save(prefix + 'black_model.h5')
