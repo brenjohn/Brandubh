@@ -30,3 +30,17 @@ To play the game run the brandubh_UI script located in the brandubh directory:
 cd brandubh
 python brandubh_UI.py
 ```
+
+# Running tests
+
+To run unit tests use the following command from the top level directory:
+```
+python -m unittest
+```
+
+If the coverage package is installed, a test coverage report can be generated
+with:
+```
+python -m coverage run -m unittest
+python -m coverage html --omit=/tmp*
+```
