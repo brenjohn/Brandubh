@@ -54,11 +54,13 @@ class TestBrandubhZero(unittest.TestCase):
         move = bot.select_move(self.game)
         self.assertTrue(move, "No move returned by bot")
 
-        # # Test data expansion.
-        # exp = self.get_dummy_experience()
-        # X, Y, R = bot.network.create_training_data(exp)
-        # self.assertTrue(len(X) == len(Y))
-        # self.assertTrue(len(X) == len(R))
+        # Test data expansion.
+        exp = self.get_dummy_experience()
+        Xb, Xw, Yb, Yw, Rb, Rw = bot.network.create_training_data(exp)
+        self.assertTrue(len(Xb) == len(Yb))
+        self.assertTrue(len(Xw) == len(Yw))
+        self.assertTrue(len(Xb) == len(Rb))
+        self.assertTrue(len(Xw) == len(Rw))
         
     def get_dummy_experience(self):
         boards = np.array([[[0., 0., 0., 0., 0., 1.],

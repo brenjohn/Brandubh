@@ -326,18 +326,19 @@ class DualNet():
                     Y_w.append(policy_targets[n])
                     rewards_w.append(episode_rewards[n])
           
-        # Convert the X, Y lists into numpy arrays
-        X_b = np.stack(X_b)
-        X_w = np.stack(X_w)
-        Y_b = np.stack(Y_b)
-        Y_w = np.stack(Y_w)
+        # Convert the X, Y lists into numpy arrays and use the game encoder to
+        # expand the training data 8 fold.
+        if X_b:
+            X_b = np.stack(X_b)
+            Y_b = np.stack(Y_b)
+            X_b, Y_b = self.encoder.expand_data(X_b, Y_b)
+            rewards_b = np.stack(8*rewards_b)
         
-        # Use the bot's game encoder to expand the training data 8 fold.
-        X_b, Y_b = self.encoder.expand_data(X_b, Y_b)
-        rewards_b = np.stack(8*rewards_b)
-        
-        X_w, Y_w = self.encoder.expand_data(X_w, Y_w)
-        rewards_w = np.stack(8*rewards_w)
+        if X_w:
+            X_w = np.stack(X_w)
+            Y_w = np.stack(Y_w)
+            X_w, Y_w = self.encoder.expand_data(X_w, Y_w)
+            rewards_w = np.stack(8*rewards_w)
             
         return X_b, X_w, Y_b, Y_w, rewards_b, rewards_w
     
