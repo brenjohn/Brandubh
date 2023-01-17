@@ -76,6 +76,8 @@ class DualNet():
     def __init__(self):
         self.black_model = DualNet.build_model()
         self.white_model = DualNet.build_model()
+        self.black_batch_size = 0
+        self.white_batch_size = 0
         
         self.compile_lite_models()
         
@@ -185,51 +187,76 @@ class DualNet():
         """
         This method uses the neural networks to predict the value of a board 
         position and the prior distribution over possible next moves.
+        
+        The game-states are first encoded as tensors which can be passed to the
+        network. Then the network is used to make predictions which are then
+        decoded and output into a dictionary of move-prior pairs.
         """
-        # First encode the game state as a tensor which can be passed to the
-        # network. Then get the network to make the prediction and decode the
-        # network's policy output into a dictionary of move-prior pairs
+        # First separate the game states into ones where white is to make a
+        # move and ones where black is to make a move. These should also be
+        # encoded by the encoder in preperation for the neural network.
         white_states = [self.encoder.encode(s, True) for s in game_states 
                         if s.player == 1]
-        white_tensors = [s[0].reshape(1, 7, 7, 6) for s in white_states]
-        white_tensor = np.concatenate(white_tensors)
-        white_tensor = white_tensor.astype(np.float32)
-        
         black_states = [self.encoder.encode(s, True) for s in game_states 
                         if s.player ==-1]
-        black_tensors = [s[0].reshape(1, 7, 7, 6) for s in black_states]
-        black_tensor = np.concatenate(black_tensors)
-        black_tensor = black_tensor.astype(np.float32)
         
-        if black_tensor:
-            if self.batch_size != black_tensor.shape[0]:
-                self.batch_size = black_tensor.shape[0]
-                input_det = self.intrp.get_input_details()[0]
-                self.intrp.resize_tensor_input(input_det['index'], black_tensor.shape)
-                self.intrp.allocate_tensors()
+        # Get both the white and black networks to make predictions for the
+        # given gamestates.
+        if black_states:
+            black_tensors = [s[0].reshape(1, 7, 7, 3) for s in black_states]
+            black_tensor = np.concatenate(black_tensors)
+            black_tensor = black_tensor.astype(np.float32)
+            
+            if self.black_batch_size != black_tensor.shape[0]:
+                self.black_batch_size = black_tensor.shape[0]
+                input_det = self.black_intrp.get_input_details()[0]
+                self.black_intrp.resize_tensor_input(input_det['index'],
+                                               black_tensor.shape)
+                self.black_intrp.allocate_tensors()
             
             self.black_intrp.set_tensor(self.black_inp_ind, black_tensor)
             self.black_intrp.invoke()
             black_priors = self.black_intrp.get_tensor(self.black_pol_ind)
             black_values = self.black_intrp.get_tensor(self.black_val_ind)
             
-        if white_tensor:
-            if self.batch_size != white_tensor.shape[0]:
-                self.batch_size = white_tensor.shape[0]
-                input_det = self.intrp.get_input_details()[0]
-                self.intrp.resize_tensor_input(input_det['index'], white_tensor.shape)
-                self.intrp.allocate_tensors()
+        if white_states:
+            white_tensors = [s[0].reshape(1, 7, 7, 3) for s in white_states]
+            white_tensor = np.concatenate(white_tensors)
+            white_tensor = white_tensor.astype(np.float32)
+            
+            if self.white_batch_size != white_tensor.shape[0]:
+                self.white_batch_size = white_tensor.shape[0]
+                input_det = self.white_intrp.get_input_details()[0]
+                self.white_intrp.resize_tensor_input(input_det['index'],
+                                               white_tensor.shape)
+                self.white_intrp.allocate_tensors()
             
             self.white_intrp.set_tensor(self.white_inp_ind, white_tensor)
             self.white_intrp.invoke()
             white_priors = self.white_intrp.get_tensor(self.white_pol_ind)
             white_values = self.white_intrp.get_tensor(self.white_val_ind)
         
+        # Correctly merge the white and black predictions into lists with the
+        # same order as the given list of gamestates.
+        N = len(game_states)
+        priors = [None] * N
+        values = [None] * N
+        encoded_states = [None] * N
+        b, w = 0, 0
+        for i in range(N):
+            state = game_states[i]
+            if state.player == 1:
+                priors[i] = white_priors[w]
+                values[i] = white_values[w]
+                encoded_states[i] = white_states[w]
+                w += 1
+            else:
+                priors[i] = black_priors[b]
+                values[i] = black_values[b]
+                encoded_states[i] = black_states[b]
+                b += 1
         
-        priors = None # merge white and black priors correctly
-        values = None # merge white and black values correctly
-        encoded_states = None # merge white and black encoded states correctly
-        
+        # decode the policy predictions into move-prior dictionaries.
         states_pieces = [s[1] for s in encoded_states]
         move_priors = [self.encoder.decode_policy(p, pieces) 
                        for p, pieces in zip(priors, states_pieces)]
