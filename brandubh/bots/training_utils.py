@@ -261,35 +261,3 @@ def random_starting_position(num_white_pieces, num_black_pieces):
     board[(3,3)] = 2
     
     return board
-
-
-class DataManager():
-    
-    def __init__(self):
-        self.Xs = None
-        self.Ys = None
-        self.Rs = None
-        self.appended = []
-        self.max_bank_size = 140000
-        
-    def append_data(self, training_data):
-        X, Y, R = training_data
-        if type(self.Xs) is np.ndarray:
-            self.Xs = np.concatenate((self.Xs, X))
-            self.Ys = np.concatenate((self.Ys, Y))
-            self.Rs = np.concatenate((self.Rs, R))
-        else:
-            self.Xs = X
-            self.Ys = Y
-            self.Rs = R
-        
-        self.appended.append(len(X))
-            
-        if self.Xs.shape[0] > self.max_bank_size:
-            self.Xs = self.Xs[-self.max_bank_size:, :, :, :]
-            self.Ys = self.Ys[-self.max_bank_size:, :, :, :]
-            self.Rs = self.Rs[-self.max_bank_size:]
-            
-    def sample_training_data(self, num=4096):
-        samples = np.random.choice(len(self.Xs), num)
-        return self.Xs[samples, :, :, :], self.Ys[samples, :, :, :], self.Rs[samples]

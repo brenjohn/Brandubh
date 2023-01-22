@@ -33,9 +33,10 @@ import copy
 
 from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, Flatten
-from keras.layers import LeakyReLU, add
+from keras.layers import LeakyReLU, add, Softmax, Reshape
 from keras.models import load_model
 from keras.optimizers import Adam
+from keras.regularizers import l2
 
 import tensorflow as tf
 
@@ -71,7 +72,8 @@ class DualNet():
         (see Encoder class)
     """
     # Regularisation constant
-    alpha = 0.005
+    alpha = 0.0001
+    biases = True
     
     def __init__(self):
         self.black_model = DualNet.build_model()
@@ -111,8 +113,11 @@ class DualNet():
     @classmethod
     def conv_layer(cls, x, filters, kernel_size):
         
-        x = Conv2D(filters, kernel_size, use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+        x = Conv2D(filters, kernel_size, use_bias = cls.biases,
+                   padding = 'same',
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         return x
@@ -121,8 +126,11 @@ class DualNet():
     def residual_layer(cls, input_block, filters, kernel_size):
         
         x = DualNet.conv_layer(input_block, filters, kernel_size)
-        x = Conv2D(filters, kernel_size, use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+        x = Conv2D(filters, kernel_size, use_bias = cls.biases,
+                   padding = 'same',
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = add([input_block, x])
         x = LeakyReLU()(x)
@@ -130,31 +138,48 @@ class DualNet():
     
     @classmethod
     def value_head(cls, x):
-        
-        x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+        x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = cls.biases,
+                   padding = 'same',
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
-        x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+        x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = cls.biases,
+                   padding = 'same',
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
-        x = Dense(64, use_bias = True, 
-                  activation = 'linear')(x)
+        x = Dense(64, use_bias = cls.biases, 
+                  activation = 'linear',
+                  bias_regularizer = l2(cls.alpha),
+                  kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Dense(1, use_bias = True, activation = 'tanh', 
+        x = Dense(1, use_bias = cls.biases, activation = 'tanh', 
                   name = 'value_head')(x)
         return x
     
     @classmethod
     def policy_head(cls, x):
-        x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'linear')(x)
+        x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = cls.biases,
+                   padding = 'same',
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = True,
-                   padding = 'same', activation = 'softmax',
-                   name = 'policy_head')(x)
+        
+        x = Conv2D(filters = 24, kernel_size = (1, 1), use_bias = cls.biases,
+                   padding = 'same', 
+                   activation = 'linear',
+                   bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
+        
+        x = Reshape(target_shape = (-1,))(x)
+        x = Softmax()(x)
+        x = Reshape(target_shape = (7, 7, 24), name='policy_head')(x)
         return x
     
     @classmethod
@@ -257,13 +282,14 @@ class DualNet():
                 b += 1
         
         # decode the policy predictions into move-prior dictionaries.
-        states_pieces = [s[1] for s in encoded_states]
-        move_priors = [self.encoder.decode_policy(p, pieces) 
-                       for p, pieces in zip(priors, states_pieces)]
+        move_priors = [self.encoder.decode_policy(p, pieces[1]) 
+                       for p, pieces in zip(priors, encoded_states)]
         
         # Restrict and noramlise prior distributions over possible moves.
         for priors in move_priors:
             N = sum(priors.values())
+            if N == 0:
+                print(priors)
             for (move, prior) in priors.items():
                 priors[move] /= N
         
@@ -275,14 +301,22 @@ class DualNet():
     def save_network(self, prefix="model_data/"):
         self.black_model.save(prefix + 'black_model.h5')
         self.white_model.save(prefix + 'white_model.h5')
-        load_command = "from bots.zero_bot.dual_network import DualNet; "
+        load_command = "from .networks.dual_network import DualNet;"
         load_command += "self.network = DualNet()"
+        
+        attributes = {"black_loss" : self.loss_history_b,
+                      "white_loss" : self.loss_history_w}
+        np.save(prefix + "dual_network_attributes.npy", attributes)
         return load_command
         
     def load_network(self, prefix="model_data/"):
         self.black_model = load_model(prefix + 'black_model.h5')
         self.white_model = load_model(prefix + 'black_model.h5')
         self.compile_lite_models()
+        attributes = np.load(prefix + "dual_network_attributes.npy",
+                             allow_pickle='TRUE').item()
+        self.loss_history_b = attributes["black_loss"]
+        self.loss_history_w = attributes["white_loss"]
         
     def num_epochs(self):
         return len(self.loss_history_w)
@@ -342,13 +376,13 @@ class DualNet():
             
         return X_b, X_w, Y_b, Y_w, rewards_b, rewards_w
     
-    def train(self, training_data, batch_size, epochs):
+    def train(self, training_data, batch_size, epochs=1):
         X_b, X_w, Y_b, Y_w, rewards_b, rewards_w = training_data
         loss_b = self.black_model.fit(X_b, [Y_b, rewards_b], 
-                             batch_size=batch_size, epochs=epochs)
+                                      batch_size=batch_size, epochs=epochs)
         loss_w = self.white_model.fit(X_w, [Y_w, rewards_w], 
-                             batch_size=batch_size, epochs=epochs)
-        self.compile_lite_model()
+                                      batch_size=batch_size, epochs=epochs)
+        self.compile_lite_models()
         return loss_b, loss_w
     
     def save_losses(self, loss_history):
@@ -362,7 +396,11 @@ class DualNet():
         self.loss_history_b.append(losses_b)
         self.loss_history_w.append(losses_w)
     
+    def get_DataManager(self, max_bank_size = 70000):
+        return DualNetDataManager(max_bank_size)
     
+
+
 class ThreePlaneEncoder():
     """
     This class is used to encode a brandubh game state as a tensor which can
@@ -373,10 +411,6 @@ class ThreePlaneEncoder():
     training data), and for expanding a training data set using symmetries of
     the game board.
     """
-    def __init__(self):
-        self.convert_to_tensor_element = {1: 'board_tensor[r,c,0] = 1',
-                                          2: 'board_tensor[r,c,1] = 1',
-                                         -1: 'board_tensor[r,c,2] = 1'}
         
     def encode(self, game_state, return_pieces=False):
         """
@@ -403,11 +437,9 @@ class ThreePlaneEncoder():
         for (r, c) in game_state.game_set.white_pieces:
             piece = game_state.game_set.board[(r, c)]
             board_tensor[r,c,piece-1] = 1
-            # exec(self.convert_to_tensor_element[piece])
             
         for (r, c) in game_state.game_set.black_pieces:
             board_tensor[r,c,2] = 1
-            # exec(self.convert_to_tensor_element[-1])
         
         if return_pieces:
             return board_tensor, pieces
@@ -510,3 +542,78 @@ class ThreePlaneEncoder():
         Y = np.flip(Y, axis=1)
         Y[:,:,:,12:] = Y[:,:,:,24:11:-1]
         return Y
+
+
+
+class DualNetDataManager():
+    """
+    A class for collecting traingin data for a zero network and facilitating
+    random sampling of the collected data.
+    """
+    
+    def __init__(self, max_bank_size = 70000):
+        self.Xbs = None                     # Collected X values for black.
+        self.Xws = None                     # Collected X values for white.
+        self.Ybs = None                     # Collected Y values for black.
+        self.Yws = None                     # Collected Y values for white.
+        self.Rbs = None                     # Collected R values for black.
+        self.Rws = None                     # Collected R values for white.
+        self.appended_b = []                # Num samples added at each step.
+        self.appended_w = []                # Num samples added at each step.
+        self.max_bank_size = max_bank_size  # Max num of samples to store.
+        
+    def append_data(self, training_data):
+        """
+        Append the given data to the collection and remove the oldest samples
+        if the limit has been reached.
+        """
+        Xb, Xw, Yb, Yw, Rb, Rw = training_data
+        
+        # Append black data.
+        if type(self.Xbs) is np.ndarray:
+            self.Xbs = np.concatenate((self.Xbs, Xb))
+            self.Ybs = np.concatenate((self.Ybs, Yb))
+            self.Rbs = np.concatenate((self.Rbs, Rb))
+        else:
+            self.Xbs = Xb
+            self.Ybs = Yb
+            self.Rbs = Rb
+        
+        # Append white data.
+        if type(self.Xws) is np.ndarray:
+            self.Xws = np.concatenate((self.Xws, Xw))
+            self.Yws = np.concatenate((self.Yws, Yw))
+            self.Rws = np.concatenate((self.Rws, Rw))
+        else:
+            self.Xws = Xw
+            self.Yws = Yw
+            self.Rws = Rw
+        
+        self.appended_b.append(len(Xb))
+        self.appended_w.append(len(Xw))
+            
+        if self.Xbs.shape[0] > self.max_bank_size:
+            self.Xbs = self.Xbs[-self.max_bank_size:, :, :, :]
+            self.Ybs = self.Ybs[-self.max_bank_size:, :, :, :]
+            self.Rbs = self.Rbs[-self.max_bank_size:]
+            
+        if self.Xws.shape[0] > self.max_bank_size:
+            self.Xws = self.Xws[-self.max_bank_size:, :, :, :]
+            self.Yws = self.Yws[-self.max_bank_size:, :, :, :]
+            self.Rws = self.Rws[-self.max_bank_size:]
+            
+    def sample_training_data(self, num=4096):
+        """
+        Return a ramdon sample of the collected training data.
+        """
+        samples_b = np.random.choice(len(self.Xbs), num)
+        samples_w = np.random.choice(len(self.Xws), num)
+        return (self.Xbs[samples_b, :, :, :],
+                self.Xws[samples_w, :, :, :],
+                self.Ybs[samples_b, :, :, :],
+                self.Yws[samples_w, :, :, :],
+                self.Rbs[samples_b],
+                self.Rws[samples_w])
+    
+    def save(self, filename):
+        np.save(filename, self.appended_b, self.appended_w)

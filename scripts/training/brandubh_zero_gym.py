@@ -26,8 +26,9 @@ from multiprocessing import Process, Manager
 
 from brandubh.bots.zero_bot.brandubh_zero import ZeroBot
 from brandubh.bots.zero_bot.networks.zero_network import ZeroNet
+from brandubh.bots.zero_bot.networks.dual_network import DualNet
 from brandubh.bots.training_utils import gain_experience
-from brandubh.bots.training_utils import save_training_data, DataManager
+from brandubh.bots.training_utils import save_training_data
 
 
 
@@ -49,7 +50,8 @@ def rand_evaluation_task(lock, out_dir):
     logging.basicConfig(filename=fname, level=logging.DEBUG)
 
     logger.info("creating")
-    net = ZeroNet()
+    # net = ZeroNet()
+    net = DualNet()
     bot = ZeroBot(evals_per_turn=700, batch_size=35, network=net)
     bot.compile_network((1.0, 0.1))
     
@@ -93,7 +95,8 @@ def mcts_evaluation_task(lock, look_ahead, out_dir):
     logging.basicConfig(filename=fname, level=logging.DEBUG)
     
     logger.info("creating")
-    net = ZeroNet()
+    # net = ZeroNet()
+    net = DualNet()
     bot = ZeroBot(evals_per_turn=700, batch_size=35, network=net)
     bot.compile_network((1.0, 0.1))
     
@@ -134,7 +137,8 @@ if __name__ == '__main__':
             os.makedirs("model_data/model_curr_data/")
         
         # Initialise bot and save current weights.
-        net = ZeroNet()
+        # net = ZeroNet()
+        net = DualNet()
         bot = ZeroBot(evals_per_turn=2100, batch_size=35, network=net)
         bot.compile_network((1.0, 0.1))
         
@@ -154,7 +158,7 @@ if __name__ == '__main__':
         # Start training the bot with self-play games.
         num_episodes = 8
         move_limit = 140
-        dm = DataManager()
+        dm = bot.get_DataManager()
         cycle = 0
         while True:
             cycle += 1
@@ -170,7 +174,7 @@ if __name__ == '__main__':
             dm.append_data(training_data)
             
             print('\nTraining network, cycle {0}'.format(cycle))
-            n = cycle + 1 if cycle < 7 else 7
+            n = cycle if cycle < 7 else 7
             for i in range(n):
                 training_data = dm.sample_training_data(4096)
                 losses = bot.network.train(training_data, batch_size=256)
@@ -178,4 +182,4 @@ if __name__ == '__main__':
             bot.compile_network((1.0, 0.1))
             with lock:
                 bot.save_bot("model_data/model_curr_data/")
-            np.save("model_data/model_curr_data/appended.npy", dm.appended)
+            dm.save("model_data/model_curr_data/appended.npy")
