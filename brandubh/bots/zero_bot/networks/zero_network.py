@@ -77,6 +77,7 @@ class ZeroNet():
         (see Encoder class)
     """
     alpha = 0.0001
+    biases = True
     
     def __init__(self):
         self.model = ZeroNet.build_model()
@@ -109,7 +110,7 @@ class ZeroNet():
     @classmethod
     def conv_layer(cls, x, filters, kernel_size):
         
-        x = Conv2D(filters, kernel_size, use_bias = True,
+        x = Conv2D(filters, kernel_size, use_bias = cls.biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -120,10 +121,8 @@ class ZeroNet():
     
     @classmethod
     def residual_layer(cls, input_block, filters, kernel_size):
-        biases = True
-        
         x = ZeroNet.conv_layer(input_block, filters, kernel_size)
-        x = Conv2D(filters, kernel_size, use_bias = biases,
+        x = Conv2D(filters, kernel_size, use_bias = cls.biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -135,8 +134,7 @@ class ZeroNet():
     
     @classmethod
     def value_head(cls, x):
-        biases = True
-        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = True,
+        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = cls.biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -144,31 +142,30 @@ class ZeroNet():
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
-        x = Dense(21, use_bias = biases, 
+        x = Dense(21, use_bias = cls.biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                    kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Dense(14, use_bias = biases, 
+        x = Dense(14, use_bias = cls.biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                   kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
-        x = Dense(1, use_bias = biases, activation = 'tanh', 
+        x = Dense(1, use_bias = cls.biases, activation = 'tanh', 
                   name = 'value_head')(x)
         return x
     
     @classmethod
     def policy_head(cls, x):
-        biases = True
-        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = biases,
+        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = cls.biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
                    kernel_regularizer = l2(cls.alpha))(x)
         x = LeakyReLU()(x)
         
-        x = Conv2D(filters = 24, kernel_size = (1, 1), use_bias = biases,
+        x = Conv2D(filters = 24, kernel_size = (1, 1), use_bias = cls.biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -263,13 +260,16 @@ class ZeroNet():
     
     def save_network(self, prefix="model_data/"):
         self.model.save(prefix + 'zero_model.h5')
-        load_command = "from .networks.zero_network import ZeroNet; "
+        load_command = "from .networks.zero_network import ZeroNet;"
         load_command += "self.network = ZeroNet()"
+        np.save(prefix + "zero_network_attributes.npy", self.loss_history)
         return load_command
         
     def load_network(self, prefix="model_data/"):
         self.model = load_model(prefix + 'zero_model.h5')
         self.compile_lite_model()
+        self.loss_history = np.load(prefix + "zero_network_attributes.npy",
+                                    allow_pickle='TRUE').item()
         
     def train(self, training_data, batch_size, epochs=1):
         X, Y, rewards = training_data
@@ -347,7 +347,13 @@ class ZeroNet():
             
         return X, Y, rewards
     
+    def get_DataManager(self, max_bank_size = 140000):
+        return ZeroNetDataManager(max_bank_size)
     
+    
+
+# TODO: Some code duplication between this encoder and the three plane encoder
+# for the dual network, Inheritance should be used to remove this.
 class SixPlaneEncoder():
     """
     This class is used to encode a brandubh game state as a tensor which can
@@ -502,6 +508,57 @@ class SixPlaneEncoder():
         Y[:,:,:,12:] = Y[:,:,:,24:11:-1]
         return Y
     
+
+
+class ZeroNetDataManager():
+    """
+    A class for collecting traingin data for a zero network and facilitating
+    random sampling of the collected data.
+    """
+    
+    def __init__(self, max_bank_size):
+        self.Xs = None                      # Collected X values.
+        self.Ys = None                      # Collected Y values.
+        self.Rs = None                      # Collected R values.
+        self.appended = []                  # Num samples added at each step.
+        self.max_bank_size = max_bank_size  # Max num of samples to store.
+        
+    def append_data(self, training_data):
+        """
+        Append the given data to the collection and remove the oldest samples
+        if the limit has been reached.
+        """
+        X, Y, R = training_data
+        if type(self.Xs) is np.ndarray:
+            self.Xs = np.concatenate((self.Xs, X))
+            self.Ys = np.concatenate((self.Ys, Y))
+            self.Rs = np.concatenate((self.Rs, R))
+        else:
+            self.Xs = X
+            self.Ys = Y
+            self.Rs = R
+        
+        self.appended.append(len(X))
+            
+        if self.Xs.shape[0] > self.max_bank_size:
+            self.Xs = self.Xs[-self.max_bank_size:, :, :, :]
+            self.Ys = self.Ys[-self.max_bank_size:, :, :, :]
+            self.Rs = self.Rs[-self.max_bank_size:]
+            
+    def sample_training_data(self, num=4096):
+        """
+        Return a ramdon sample of the collected training data.
+        """
+        samples = np.random.choice(len(self.Xs), num)
+        return (self.Xs[samples, :, :, :], 
+                self.Ys[samples, :, :, :], 
+                self.Rs[samples])
+    
+    def save(self, filename):
+        np.save(filename, self.appended)
+    
+
+
 def print_tensor(tensor, header, filename='prediction_output.txt'):
     with open(filename, 'a') as f:
         f.write(header + "\n\n\n")

@@ -430,7 +430,6 @@ class ZeroBot:
                       "c" : self.c,
                       "batch_size" : self.batch_size,
                       "alpha" : self.alpha,
-                      "loss_history" : self.network.loss_history,
                       "evaluation_history_old" : self.evaluation_history_old,
                       "evaluation_history_rand" : self.evaluation_history_rand,
                       "network_load_command": network_load_command}
@@ -456,8 +455,6 @@ class ZeroBot:
         network_load_command = attributes["network_load_command"]
         exec(network_load_command)
         self.network.load_network(prefix)
-        if "loss_history" in attributes:
-            self.network.loss_history = attributes["loss_history"]
         
     def save_as_old_bot(self, prefix="model_data/old_bot/"):
         """
@@ -473,6 +470,15 @@ class ZeroBot:
         
     def compile_network(self, loss_weights):
         self.network.compile_network(*loss_weights)
+    
+    def get_DataManager(self, max_bank_size = 0):
+        """
+        Return a manager object to manage generated training data for the
+        bot's neural network.
+        """
+        if max_bank_size:
+            return self.network.get_DataManager(max_bank_size)
+        return self.network.get_DataManager()
 
 
 
