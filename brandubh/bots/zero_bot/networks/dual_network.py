@@ -23,8 +23,6 @@ data for the network.
 # Disable tensorflow logging messages:
 import logging
 import os
-logging.disable(logging.INFO)
-logging.disable(logging.WARNING)
 logging.getLogger('tensorflow').disabled = True
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -138,14 +136,7 @@ class DualNet():
     
     @classmethod
     def value_head(cls, x):
-        x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = cls.biases,
-                   padding = 'same',
-                   activation = 'linear',
-                   bias_regularizer = l2(cls.alpha),
-                   kernel_regularizer = l2(cls.alpha))(x)
-        # x = BatchNormalization(axis=1)(x)
-        x = LeakyReLU()(x)
-        x = Conv2D(filters = 14, kernel_size = (3, 3), use_bias = cls.biases,
+        x = Conv2D(filters = 21, kernel_size = (3, 3), use_bias = cls.biases,
                    padding = 'same',
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -153,7 +144,12 @@ class DualNet():
         # x = BatchNormalization(axis=1)(x)
         x = LeakyReLU()(x)
         x = Flatten()(x)
-        x = Dense(64, use_bias = cls.biases, 
+        x = Dense(21, use_bias = cls.biases, 
+                  activation = 'linear',
+                  bias_regularizer = l2(cls.alpha),
+                   kernel_regularizer = l2(cls.alpha))(x)
+        x = LeakyReLU()(x)
+        x = Dense(14, use_bias = cls.biases, 
                   activation = 'linear',
                   bias_regularizer = l2(cls.alpha),
                   kernel_regularizer = l2(cls.alpha))(x)
@@ -164,7 +160,7 @@ class DualNet():
     
     @classmethod
     def policy_head(cls, x):
-        x = Conv2D(filters = 24, kernel_size = (3, 3), use_bias = cls.biases,
+        x = Conv2D(filters = 21, kernel_size = (3, 3), use_bias = cls.biases,
                    padding = 'same',
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -189,9 +185,9 @@ class DualNet():
         """
         board_input = Input(shape=(7,7,3), name='board_input')
         
-        processed_board = DualNet.conv_layer(board_input, 14, (3, 3))
+        processed_board = DualNet.conv_layer(board_input, 28, (3, 3))
         for i in range(7):
-            processed_board = DualNet.residual_layer(processed_board, 14, (3, 3))
+            processed_board = DualNet.residual_layer(processed_board, 28, (3, 3))
             
         value_output = DualNet.value_head(processed_board)
         policy_output = DualNet.policy_head(processed_board)
@@ -288,8 +284,6 @@ class DualNet():
         # Restrict and noramlise prior distributions over possible moves.
         for priors in move_priors:
             N = sum(priors.values())
-            if N == 0:
-                print(priors)
             for (move, prior) in priors.items():
                 priors[move] /= N
         

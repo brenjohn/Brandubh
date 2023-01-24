@@ -23,8 +23,6 @@ data for the network.
 # Disable tensorflow logging messages:
 import logging
 import os
-logging.disable(logging.INFO)
-logging.disable(logging.WARNING)
 logging.getLogger('tensorflow').disabled = True
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
