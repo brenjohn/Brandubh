@@ -377,16 +377,15 @@ class DualNet():
         loss_w = self.white_model.fit(X_w, [Y_w, rewards_w], 
                                       batch_size=batch_size, epochs=epochs)
         self.compile_lite_models()
-        return loss_b, loss_w
+        self.save_losses(loss_b, loss_w)
     
-    def save_losses(self, loss_history):
+    def save_losses(self, loss_history_b, loss_history_w):
         """
         Method to save the evaulations of the loss function of the neural
         network on training data.
         """
-        losses_history_b, losses_history_w = loss_history
-        losses_b = [loss[0] for loss in losses_history_b.history.values()]
-        losses_w = [loss[0] for loss in losses_history_w.history.values()]
+        losses_b = [loss[0] for loss in loss_history_b.history.values()]
+        losses_w = [loss[0] for loss in loss_history_w.history.values()]
         self.loss_history_b.append(losses_b)
         self.loss_history_w.append(losses_w)
     
