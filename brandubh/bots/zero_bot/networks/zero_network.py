@@ -266,8 +266,9 @@ class ZeroNet():
     def load_network(self, prefix="model_data/"):
         self.model = load_model(prefix + 'zero_model.h5')
         self.compile_lite_model()
-        self.loss_history = np.load(prefix + "zero_network_attributes.npy",
-                                    allow_pickle='TRUE').item()
+        if os.path.exists(prefix + "zero_network_attributes.npy"):
+            self.loss_history = np.load(prefix + "zero_network_attributes.npy",
+                                        allow_pickle='TRUE').item()
         
     def train(self, training_data, batch_size, epochs=1):
         X, Y, rewards = training_data

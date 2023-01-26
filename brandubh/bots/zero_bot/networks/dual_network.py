@@ -307,10 +307,11 @@ class DualNet():
         self.black_model = load_model(prefix + 'black_model.h5')
         self.white_model = load_model(prefix + 'black_model.h5')
         self.compile_lite_models()
-        attributes = np.load(prefix + "dual_network_attributes.npy",
-                             allow_pickle='TRUE').item()
-        self.loss_history_b = attributes["black_loss"]
-        self.loss_history_w = attributes["white_loss"]
+        if os.path.exists(prefix + "dual_network_attributes.npy"):
+            attributes = np.load(prefix + "dual_network_attributes.npy",
+                                 allow_pickle='TRUE').item()
+            self.loss_history_b = attributes["black_loss"]
+            self.loss_history_w = attributes["white_loss"]
         
     def num_epochs(self):
         return len(self.loss_history_w)
