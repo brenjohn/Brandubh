@@ -22,7 +22,7 @@ git clone https://github.com/brenjohn/Brandubh.git
 To download a trained bot to play against checkout the ZeroBot branch:
 ```
 cd Brandubh
-git checkout ZeroBot-15jan2022
+git checkout ZeroBot-15jan2023
 ```
 
 To play the game run the play_brandubh script located in the top level directory:
