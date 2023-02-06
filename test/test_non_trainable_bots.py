@@ -28,11 +28,15 @@ class TestRandBot(unittest.TestCase):
 class TestGreedyRandBot(unittest.TestCase):
     
     def setUp(self):
-        self.bot = GreedyRandomBot()
+        self.bot1 = GreedyRandomBot()
+        self.bot2 = GreedyRandomBot(filter_losing_moves = True)
         self.game = GameState.new_game()
 
     def test_play(self):
-        move = self.bot.select_move(self.game)
+        move = self.bot1.select_move(self.game)
+        self.assertTrue(move, "No move returned by bot")
+        
+        move = self.bot2.select_move(self.game)
         self.assertTrue(move, "No move returned by bot")
         
         
