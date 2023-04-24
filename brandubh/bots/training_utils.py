@@ -66,8 +66,10 @@ def simulate_game(white, black, starting_board=None, max_moves=0, eps=0):
             for move in tree_root.branches.keys():
                 visit_counts[move] = tree_root.branches[move].visit_count
             
-            if np.random.rand() < eps:
-                action = bot.rand_bot.select_move(game)
+            # TODO: update docstring re this eps method
+            if (eps * game.player) > 0:
+                if np.random.rand() < abs(eps):
+                    action = bot.rand_bot.select_move(game)
             
             if action.is_play:
                 # Encode and record the game-state as well as the visit counts and

@@ -133,8 +133,8 @@ if __name__ == '__main__':
             os.makedirs("model_data/model_curr_data/")
         
         # Initialise bot and save current weights.
-        # net = ZeroNet()
-        net = DualNet()
+        net = ZeroNet()
+        # net = DualNet()
         bot = ZeroBot(evals_per_turn=2100, batch_size=35, network=net)
         bot.compile_network((1.0, 0.1))
         
@@ -156,10 +156,10 @@ if __name__ == '__main__':
         move_limit = 140
         dm = bot.get_DataManager()
         cycle = 0
+        eps = 0.0
         while True:
             cycle += 1
             print('\nGainning experience, cycle {0}'.format(cycle))
-            eps = 0.07
             exp = gain_experience(bot, bot, num_episodes, move_limit, eps)
             
             print('Preparing training data')
@@ -168,6 +168,9 @@ if __name__ == '__main__':
             training_data = bot.network.create_training_data(exp)
             save_training_data(training_data, cycle)
             dm.append_data(training_data)
+            data_balance = dm.balance()
+            eps += 0.1 * data_balance
+            print(f'Data balance is now {data_balance}. Setting eps to {eps}')
             
             print('\nTraining network, cycle {0}'.format(cycle))
             n = cycle if cycle < 7 else 7

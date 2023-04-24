@@ -553,6 +553,19 @@ class ZeroNetDataManager():
                 self.Ys[samples, :, :, :], 
                 self.Rs[samples])
     
+    def balance(self):
+        # Compute the balance of the data set defined as: 
+        # (white_winning_moves - black_winning_moves)/total_winning_moves
+        data_balance = 0
+        winning_moves = 0
+        for i in range(len(self.Rs)):
+            if self.Rs[i] == 1:
+                # Increment by +1 is white move, otherwise increment by -1.
+                data_balance += 1 if self.Xs[i, 0, 0, 4] else -1
+                winning_moves += 1
+            
+        return data_balance/winning_moves
+    
     def save(self, filename):
         np.save(filename, self.appended)
     
