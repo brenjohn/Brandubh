@@ -32,10 +32,11 @@ def read_results(filename):
 
 #%%
 
-filenames = ["rand_no_lookahead", 
-             "rand_with_lookahead",
-             "grnd_no_lookahead",
-             "grnd_with_lookahead",
+prefix = "evaluation_logs/"
+filenames = ["rand_lookahead_1", 
+             "rand_lookahead_140",
+             "grnd_lookahead_1",
+             "grnd_lookahead_140",
              # "mcts_with_lookahead_350",
              # "mcts_with_lookahead_700",
              # "mcts_with_lookahead_1050"
@@ -43,7 +44,7 @@ filenames = ["rand_no_lookahead",
 
 xs, ys = [], [] 
 for filename in filenames:
-    y, x = read_results(filename + ".txt")
+    y, x = read_results(prefix + filename + ".txt")
     xs.append(x)
     ys.append(y)
 
