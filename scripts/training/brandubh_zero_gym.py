@@ -46,8 +46,8 @@ def rand_evaluation_task(lock, out_dir):
     logging.basicConfig(filename=fname, level=logging.DEBUG)
 
     logger.info("creating")
-    # net = ZeroNet()
-    net = DualNet()
+    net = ZeroNet()
+    # net = DualNet()
     bot = ZeroBot(evals_per_turn=700, batch_size=35, network=net)
     bot.compile_network((1.0, 0.1))
     
@@ -91,8 +91,8 @@ def mcts_evaluation_task(lock, look_ahead, out_dir):
     logging.basicConfig(filename=fname, level=logging.DEBUG)
     
     logger.info("creating")
-    # net = ZeroNet()
-    net = DualNet()
+    net = ZeroNet()
+    # net = DualNet()
     bot = ZeroBot(evals_per_turn=700, batch_size=35, network=net)
     bot.compile_network((1.0, 0.1))
     
@@ -156,7 +156,7 @@ if __name__ == '__main__':
         move_limit = 140
         dm = bot.get_DataManager()
         cycle = 0
-        eps = 0.0
+        eps = 0.002
         while True:
             cycle += 1
             print('\nGainning experience, cycle {0}'.format(cycle))
@@ -181,4 +181,3 @@ if __name__ == '__main__':
             bot.compile_network((1.0, 0.1))
             with lock:
                 bot.save_bot("model_data/model_curr_data/")
-            dm.save("model_data/model_curr_data/appended.npy")

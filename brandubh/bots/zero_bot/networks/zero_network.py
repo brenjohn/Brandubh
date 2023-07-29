@@ -132,7 +132,7 @@ class ZeroNet():
     
     @classmethod
     def value_head(cls, x):
-        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = cls.biases,
+        x = Conv2D(filters = 1, kernel_size = (1, 1), use_bias = cls.biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -156,7 +156,7 @@ class ZeroNet():
     
     @classmethod
     def policy_head(cls, x):
-        x = Conv2D(filters = 35, kernel_size = (1, 1), use_bias = cls.biases,
+        x = Conv2D(filters = 7, kernel_size = (1, 1), use_bias = cls.biases,
                    padding = 'same', 
                    activation = 'linear',
                    bias_regularizer = l2(cls.alpha),
@@ -182,9 +182,9 @@ class ZeroNet():
         """
         board_input = Input(shape=(7,7,6), name='board_input')
         
-        processed_board = ZeroNet.conv_layer(board_input, 35, (3, 3))
+        processed_board = ZeroNet.conv_layer(board_input, 28, (3, 3))
         for i in range(7):
-            processed_board = ZeroNet.residual_layer(processed_board, 35, (3, 3))
+            processed_board = ZeroNet.residual_layer(processed_board, 28, (3, 3))
             
         policy_output = ZeroNet.policy_head(processed_board)
         value_output = ZeroNet.value_head(processed_board)
@@ -260,15 +260,16 @@ class ZeroNet():
         self.model.save(prefix + 'zero_model.h5')
         load_command = "from .networks.zero_network import ZeroNet;"
         load_command += "self.network = ZeroNet()"
-        np.save(prefix + "zero_network_attributes.npy", self.loss_history)
+        np.save(prefix + "zero_network_loss_history.npy", self.loss_history)
         return load_command
         
     def load_network(self, prefix="model_data/"):
         self.model = load_model(prefix + 'zero_model.h5')
         self.compile_lite_model()
-        if os.path.exists(prefix + "zero_network_attributes.npy"):
-            self.loss_history = np.load(prefix + "zero_network_attributes.npy",
-                                        allow_pickle='TRUE').item()
+        if os.path.exists(prefix + "zero_network_loss_history.npy"):
+            losses = np.load(prefix + "zero_network_loss_history.npy",
+                             allow_pickle='True')
+            self.loss_history = [list(ls) for ls in list(losses)]
         
     def train(self, training_data, batch_size, epochs=1):
         X, Y, rewards = training_data
@@ -347,7 +348,7 @@ class ZeroNet():
         return X, Y, rewards
     
     def get_DataManager(self, max_bank_size = 140000):
-        return ZeroNetDataManager(max_bank_size)
+        return ZeroNetBalancedDataManager(max_bank_size)
     
     
 
@@ -546,7 +547,7 @@ class ZeroNetDataManager():
             
     def sample_training_data(self, num=4096):
         """
-        Return a ramdon sample of the collected training data.
+        Return a random sample of the collected training data.
         """
         samples = np.random.choice(len(self.Xs), num)
         return (self.Xs[samples, :, :, :], 
@@ -590,3 +591,152 @@ def print_tensor(tensor, header, filename='prediction_output.txt'):
                 f.write("\n")
             f.write("The sum of the elements is {0}".format(tensor.sum()))
             f.write("\n\n")
+            
+            
+
+class ZeroNetBalancedDataManager():
+    """
+    A class for collecting traingin data for a zero network and facilitating
+    random sampling of the collected data.
+    """
+    
+    def __init__(self, max_bank_size):
+        self.white_win_bank = DataBank(max_bank_size//2)
+        self.black_win_bank = DataBank(max_bank_size//2)
+        self.draw_bank = DataBank(max_bank_size//2)
+        
+        
+    def append_data(self, train_data):
+        """
+        Sort the training data into winning games for white and black and then
+        append the data into the appropriate data bank.
+        """
+        white_data, black_data, draw_data = self.sort_training_data(train_data)
+        
+        self.white_win_bank.append_data(white_data)
+        self.black_win_bank.append_data(black_data)
+        self.draw_bank.append_data(draw_data)
+      
+        
+    def sort_training_data(self, training_data):
+        """
+        Divide the given training data into two data sets: wins for white and 
+        wins for black.
+        """
+        X, Y, R = training_data
+        
+        white_mask = []
+        black_mask = []
+        draw_mask  = []
+        for i in range(len(R)):
+            if not np.sign(R[i]) == 0:
+                player = int(X[i, 0, 0, 4])       # 1 for white, 0 for black.
+                reward = (np.sign(R[i]) + 1) // 2 # 1 for a win, 0 for a loss.
+                
+                if (player ^ reward):
+                    black_mask.append(i)
+                else:
+                    white_mask.append(i)
+                
+            else:
+                draw_mask.append(i)
+            
+        X_white = X[white_mask, :, :, :]
+        Y_white = Y[white_mask, :, :, :]
+        R_white = R[white_mask]
+        
+        X_black = X[black_mask, :, :, :]
+        Y_black = Y[black_mask, :, :, :]
+        R_black = R[black_mask]
+        
+        X_draw  = X[draw_mask, :, :, :]
+        Y_draw  = Y[draw_mask, :, :, :]
+        R_draw  = R[draw_mask]
+        
+        return ((X_white, Y_white, R_white), 
+                (X_black, Y_black, R_black),
+                (X_draw,  Y_draw,  R_draw))
+      
+      
+    def sample_training_data(self, num=4096):
+        """
+        Return a random sample of the collected training data.
+        """
+        if self.white_win_bank.size() > 0:
+            Xws, Yws, Rws = self.white_win_bank.sample_training_data(num//2)
+        else:
+            Xws = np.empty((0, 7, 7, 6))
+            Yws = np.empty((0, 7, 7, 24))
+            Rws = np.empty((0))
+            
+        if self.black_win_bank.size() > 0:
+            Xbs, Ybs, Rbs = self.black_win_bank.sample_training_data(num//2)
+        else:
+            Xbs = np.empty((0, 7, 7, 6))
+            Ybs = np.empty((0, 7, 7, 24))
+            Rbs = np.empty((0))
+        
+        return (np.concatenate((Xws, Xbs)),
+                np.concatenate((Yws, Ybs)),
+                np.concatenate((Rws, Rbs)))
+    
+    
+    def balance(self):
+        # Compute the balance of the data set defined as: 
+        # (white_winning_moves - black_winning_moves)/total_winning_moves
+        white_win_moves = self.white_win_bank.size()
+        black_win_moves = self.black_win_bank.size()
+        total = white_win_moves + black_win_moves + self.draw_bank.size()
+        return (white_win_moves - black_win_moves) / total
+    
+    
+    def save(self, filename):
+        np.save(filename, self.appended)
+        
+        
+
+class DataBank():
+    
+    def __init__(self, max_bank_size):
+        self.Xs = None                      # Collected X values.
+        self.Ys = None                      # Collected Y values.
+        self.Rs = None                      # Collected R values.
+        self.appended = []                  # Num samples added at each step.
+        self.max_bank_size = max_bank_size  # Max num of samples to store.
+        
+        
+    def append_data(self, training_data):
+        """
+        Append the given data to the collection and remove the oldest samples
+        if the limit has been reached.
+        """
+        X, Y, R = training_data
+        if type(self.Xs) is np.ndarray:
+            self.Xs = np.concatenate((self.Xs, X))
+            self.Ys = np.concatenate((self.Ys, Y))
+            self.Rs = np.concatenate((self.Rs, R))
+        else:
+            self.Xs = X
+            self.Ys = Y
+            self.Rs = R
+        
+        self.appended.append(len(X))
+            
+        if self.Xs.shape[0] > self.max_bank_size:
+            self.Xs = self.Xs[-self.max_bank_size:, :, :, :]
+            self.Ys = self.Ys[-self.max_bank_size:, :, :, :]
+            self.Rs = self.Rs[-self.max_bank_size:]
+            
+            
+    def sample_training_data(self, num=2048):
+        """
+        Return a random sample of the collected training data.
+        """
+        samples = np.random.choice(len(self.Xs), num)
+        return (self.Xs[samples, :, :, :], 
+                self.Ys[samples, :, :, :], 
+                self.Rs[samples])
+    
+    
+    def size(self):
+        return len(self.Rs) if (self.Rs is not None) else 0
