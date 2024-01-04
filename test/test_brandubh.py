@@ -7,6 +7,8 @@ Created on Sat May 15 15:19:41 2021
 """
 
 import unittest
+
+from numpy import zeros
 from brandubh.game import Act, GameSet, GameState
 
 
@@ -30,56 +32,58 @@ class TestAct(unittest.TestCase):
 class TestGameSet(unittest.TestCase):
     
     @classmethod
-    def setUpClass(cls):
-        # Create a dictionary for the board
-        board = {}
-        for i in range(7):
-            for j in range(7):
-                board[(i,j)] = 0
+    def setUpClass(cls):                
+        # Create a 2D array for the board
+        board = [0] * 49
+
         # Set up the black pieces
-        for i in [0, 1, 5, 6]:
-            board[(3, i)] = -1
-            board[(i, 3)] = -1
+        for n, i in enumerate([0, 1, 5, 6]):
+            board[3 + 7 * i] = 2 * n + 2
+            board[i + 7 * 3] = 2 * n + 10
+
         # Set up the white pieces
-        for i in [2, 4]:
-            board[(3,i)] = 1
-            board[(i,3)] = 1
+        for n, i in enumerate([2, 4]):
+            board[3 + 7 * i] = 2 * n + 3
+            board[i + 7 * 3] = 2 * n + 7
+
         # Place the king piece in the centre
-        board[(3,3)] = 2
+        board[3 + 7 * 3] = 1
         
-        cls.game_set = GameSet()
+        cls.game_set = GameSet.empty_board()
         cls.game_set.set_board(board)
     
     def test_special_square(self):
         point = (0, 0)
-        self.assertTrue(self.game_set.is_special_square(point),
+        self.assertTrue(self.game_set.is_special_square(*point),
                         "The corner (0, 0) should be a special square")
         point = (1, 0)
-        self.assertFalse(self.game_set.is_special_square(point),
+        self.assertFalse(self.game_set.is_special_square(*point),
                         "The corner (1, 0) is not a special square")
 
     def test_move_piece(self):
         game_set = self.game_set.copy()
         
         # Test piece is moved from initial position to final position.
-        game_set.move_piece((1, 3, 1, 0))
-        self.assertIn((1, 0), game_set.black_pieces,
-                      "piece wasn't moved to final position")
-        self.assertNotIn((1, 3), game_set.black_pieces,
+        piece = game_set.get_piece(1, 3)
+        game_set.move_piece(1, 3, 1, 0)
+        self.assertEqual(piece, game_set.get_piece(1, 0),
+                         "piece wasn't moved to final position")
+        self.assertEqual(0, game_set.get_piece(1, 3),
                          "piece wasn't removed from initial position")
         
         # Test if piece captured by opponent piece and hostile square.
-        game_set.move_piece((2, 3, 2, 0))
-        self.assertIn((2, 0), game_set.white_pieces,
-                      "piece wasn't moved to final position")
-        self.assertNotIn((1, 0), game_set.black_pieces,
+        piece = game_set.get_piece(2, 3)
+        game_set.move_piece(2, 3, 2, 0)
+        self.assertEqual(piece, game_set.get_piece(2, 0),
+                         "piece wasn't moved to final position")
+        self.assertEqual(0, game_set.get_piece(1, 0),
                          "piece wasn't removed after being captured")
         
         # Test if king captured by opponent pieces.
-        self.assertFalse(game_set.king_captured)
-        game_set.move_piece((3, 3, 0, 4))
-        game_set.move_piece((5, 3, 0, 5))
-        self.assertTrue(game_set.king_captured, "King wasn't captured")
+        self.assertFalse(game_set.king_captured(), "king is already captured")
+        game_set.move_piece(3, 3, 0, 4)
+        game_set.move_piece(5, 3, 0, 5)
+        self.assertTrue(game_set.king_captured(), "King wasn't captured")
         
         
         
@@ -96,12 +100,12 @@ class TestGameState(unittest.TestCase):
         # Test making a legal move.
         action = Act(move=(0, 3, 0, 2))
         message = game.take_turn(action)
-        self.assertTrue(message == None)
+        self.assertTrue(message == None, "This move is illegal")
         
         # Test making illegal moves.
         action = Act(move=(0, 2, 0, 3))
         message = game.take_turn(action)
-        expected = "Either there's no piece there or it doesn't belong to you"
+        expected = "This piece doesn't belong to you"
         self.assertTrue(message == expected)
         
         action = Act(move=(4, 3, 0, 3))

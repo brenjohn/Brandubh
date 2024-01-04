@@ -216,15 +216,15 @@ class DualNet():
         # First separate the game states into ones where white is to make a
         # move and ones where black is to make a move. These should also be
         # encoded by the encoder in preperation for the neural network.
-        white_states = [self.encoder.encode(s, True) for s in game_states 
+        white_states = [self.encoder.encode(s) for s in game_states 
                         if s.player == 1]
-        black_states = [self.encoder.encode(s, True) for s in game_states 
+        black_states = [self.encoder.encode(s) for s in game_states 
                         if s.player ==-1]
         
         # Get both the white and black networks to make predictions for the
         # given gamestates.
         if black_states:
-            black_tensors = [s[0].reshape(1, 7, 7, 3) for s in black_states]
+            black_tensors = [s.reshape(1, 7, 7, 3) for s in black_states]
             black_tensor = np.concatenate(black_tensors)
             black_tensor = black_tensor.astype(np.float32)
             
@@ -241,7 +241,7 @@ class DualNet():
             black_values = self.black_intrp.get_tensor(self.black_val_ind)
             
         if white_states:
-            white_tensors = [s[0].reshape(1, 7, 7, 3) for s in white_states]
+            white_tensors = [s.reshape(1, 7, 7, 3) for s in white_states]
             white_tensor = np.concatenate(white_tensors)
             white_tensor = white_tensor.astype(np.float32)
             
@@ -278,14 +278,8 @@ class DualNet():
                 b += 1
         
         # decode the policy predictions into move-prior dictionaries.
-        move_priors = [self.encoder.decode_policy(p, pieces[1]) 
-                       for p, pieces in zip(priors, encoded_states)]
-        
-        # Restrict and noramlise prior distributions over possible moves.
-        for priors in move_priors:
-            N = sum(priors.values())
-            for (move, prior) in priors.items():
-                priors[move] /= N
+        move_priors = [self.encoder.decode_policy(ps, state.legal_moves()) 
+                       for ps, state in zip(priors, game_states)]
         
         predictions = [(priors, value[0]) 
                        for priors, value in zip(move_priors, values)]
@@ -406,7 +400,7 @@ class ThreePlaneEncoder():
     the game board.
     """
         
-    def encode(self, game_state, return_pieces=False):
+    def encode(self, game_state):
         """
         A game state is encoded as three 7x7 planes (or a tensor with shape 
         (7,7,3)) as described below.
@@ -421,25 +415,25 @@ class ThreePlaneEncoder():
         The third plane encodes the position of all the black pieces.
         """
         board_tensor = np.zeros((7,7,3))
-        player = game_state.player
-        
-        if player == 1:
-            pieces = game_state.game_set.white_pieces
-        else:
-            pieces = game_state.game_set.black_pieces
-        
-        for (r, c) in game_state.game_set.white_pieces:
-            piece = game_state.game_set.board[(r, c)]
-            board_tensor[r,c,piece-1] = 1
+        game_set = game_state.game_set
             
-        for (r, c) in game_state.game_set.black_pieces:
-            board_tensor[r,c,2] = 1
+        # white soldier pieces
+        for piece in range(3, 11, 2):
+            r, c = game_set.piece_position(piece)
+            board_tensor[r, c, 0] = 1
+            
+        # King piece
+        r, c = game_set.piece_position(1)
+        board_tensor[r, c, 1] = 1
         
-        if return_pieces:
-            return board_tensor, pieces
+        # black soldier pieces
+        for piece in range(2, 18, 2):
+            r, c = game_set.piece_position(piece)
+            board_tensor[r, c, 2] = 1
+        
         return board_tensor
     
-    def decode_policy(self, model_output, pieces):
+    def decode_policy(self, model_output, legal_moves):
         """
         The policy head of the DualNet outputs a tensor with shape (7,7,24)
         containing a probaility distribution over possible moves to make.
@@ -461,20 +455,25 @@ class ThreePlaneEncoder():
         is output_tensor[3, 2, 7].
         """
         move_priors = {}
-        for (xi, yi) in pieces:
-            
-            for i, yf in enumerate(range(yi-1, -1, -1)):
-                move_priors[(xi, yi, xi, yf)] = model_output[xi, yi, i]
-                
-            for i, yf in enumerate(range(yi+1, 7)):
-                move_priors[(xi, yi, xi, yf)] = model_output[xi, yi, i+6]
-                
-            for i, xf in enumerate(range(xi-1, -1, -1)):
-                move_priors[(xi, yi, xf, yi)] = model_output[xi, yi, i+12]
-                
-            for i, xf in enumerate(range(xi+1, 7)):
-                move_priors[(xi, yi, xf, yi)] = model_output[xi, yi, i+18]
+        N = 0
         
+        for (xi, yi, xf, yf) in legal_moves:
+            if yf < yi:
+                n = 6 - (yi - yf)
+            elif yf > yi:
+                n = 5 + (yf - yi)
+            elif xf < xi:
+                n = 18 - (xi - xf)
+            elif xf > xi:
+                n = 17 + (xi - xf)
+            
+            prior = model_output[xi, yi, n]
+            move_priors[(xi, yi, xf, yf)] = prior
+            N += prior
+            
+        for move in move_priors.keys():
+            move_priors[move] /= N
+            
         return move_priors
     
     def encode_prior(self, move_probs):
