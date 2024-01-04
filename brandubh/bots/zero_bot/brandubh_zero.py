@@ -136,7 +136,8 @@ class ZeroBot:
         # Run the hybrid neural network - Monte Carlo tree search algorithm to
         # update the current search tree with new board evaluations.
         self.update_tree()
-                
+               
+        # TODO: The rest of this function could go into a "sample_move" func.
         # Get a list of possible moves sorted according to visit count,
         # the move with the highest visit count should be first in the list.
         # From the list of all possible next moves, select a move with one of
@@ -528,14 +529,8 @@ class TreeNode:
         # of the node counts as the first visit so is initialised to 1.
         self.total_visit_count = 1
         
-        self.branches = {}
-        moves = game_state.legal_moves()
-        N = 0
-        for move in moves:
-            N += priors[move]
-            
-        for move in moves:
-            self.branches[move] = Branch(priors[move]/N)
+        self.branches = {move : Branch(prior) 
+                         for move, prior in priors.items()}
                 
         self.children = {}
          
@@ -564,6 +559,16 @@ class TreeNode:
         if branch.visit_count == 0:
             return 0
         return (branch.total_value + branch.virtual_loss) / branch.visit_count
+    
+    def branch_score_stats(self, move):
+        branch = self.branches[move]
+        visit_count = branch.visit_count
+        prior = branch.prior
+        if visit_count:
+            expected_value = (branch.total_value + branch.virtual_loss) / branch.visit_count
+        else:
+            expected_value = 0
+        return expected_value, prior, visit_count
     
     def increment_virtual_loss(self, move):
         if move:
@@ -612,7 +617,7 @@ class TreeNode:
     def corresponds_to(self, history_link):
         if history_link:
             if self.state.player == history_link.player:
-                if self.state.game_set.board == history_link.board:
+                if self.state.game_set.board_state() == history_link.board:
                     return True
         return False
     
@@ -682,15 +687,15 @@ class TreeClimber:
         corresponding leaf game state.
         """
         node = self.node
-        next_move = self.select_branch(node)
+        next_move = self.select_branch()
         
         while node.has_child(next_move):
             node.increment_virtual_loss(next_move)
             node = node.get_child(next_move)
-            next_move = self.select_branch(node)
+            self.node = node
+            next_move = self.select_branch()
             
         node.lock_branch(next_move)
-        self.node = node
         self.next_move = next_move
     
     def climb_down(self):
@@ -732,7 +737,7 @@ class TreeClimber:
         self.node.add_child(self.next_move, new_node)
         self.value = -1 * value
     
-    def select_branch(self, node):
+    def select_branch(self):
         """
         This method selects a move/branch stemming from the given node by 
         picking the move that maximises the following PUCT score:
@@ -748,19 +753,25 @@ class TreeClimber:
                   
         Christopher D. Rosin - Multi-armed Bandits with Episode Context
         """
-        c_sqrt_total_n = np.sqrt(node.total_visit_count) * self.c
+        self.c_sqrt_total_n = np.sqrt(self.node.total_visit_count) * self.c
         
-        def branch_score(move):
-            q = node.expected_value(move)
-            p = node.prior(move)
-            n = node.visit_count(move)
-            return q + p * c_sqrt_total_n/(1+n)
-        
-        moves = node.moves()
+        moves = self.node.moves()
         if moves:
-            return max(moves, key=branch_score)
+            return max(moves, key=self.branch_score)
         else:
             # If moves is empty then no legal moves can be made from the game
             # state corresponding to the given node.
             return None
+        
+    def branch_score(self, move):
+        # TODO: refactor this function to be a method of the climber class
+        # (so it's not defined every select_branch call, can make 
+        # c_sqrt_total_n an attribute of th climber class to make this 
+        # possible) and maybe inline the node method calls, or fuse them 
+        # together to maintain encapsulation.
+        # q = self.node.expected_value(move)
+        # p = self.node.prior(move)
+        # n = self.node.visit_count(move)
+        q, p, n = self.node.branch_score_stats(move)
+        return q + p * self.c_sqrt_total_n/(1+n)
         

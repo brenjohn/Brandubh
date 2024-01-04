@@ -247,7 +247,7 @@ class MCTSNode:
     def corresponds_to(self, history_link):
         if history_link:
             if self.game_state.player == history_link.player:
-                if self.game_state.game_set.board == history_link.board:
+                if self.game_state.game_set.board_state() == history_link.board:
                     return True
         return False
     

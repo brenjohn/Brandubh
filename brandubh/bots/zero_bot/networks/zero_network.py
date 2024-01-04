@@ -206,8 +206,8 @@ class ZeroNet():
         # First encode the game states as a tensor which can be passed to the
         # network. Then get the network to make the prediction and decode the
         # network's policy output into a dictionary of move-prior pairs
-        encoded_states = [self.encoder.encode(s, True) for s in game_states]
-        input_tensors = [s[0].reshape(1, 7, 7, 6) for s in encoded_states]
+        encoded_states = [self.encoder.encode(s) for s in game_states]
+        input_tensors = [s.reshape(1, 7, 7, 6) for s in encoded_states]
         input_tensor = np.concatenate(input_tensors)
         input_tensor = input_tensor.astype(np.float32)
         
@@ -222,15 +222,8 @@ class ZeroNet():
         priors = self.intrp.get_tensor(self.pol_ind)
         values = self.intrp.get_tensor(self.val_ind)
         
-        states_pieces = [s[1] for s in encoded_states]
-        move_priors = [self.encoder.decode_policy(p, pieces) 
-                       for p, pieces in zip(priors, states_pieces)]
-        
-        # Restrict and noramlise prior distributions over possible moves.
-        for priors in move_priors:
-            N = sum(priors.values())
-            for (move, prior) in priors.items():
-                priors[move] /= N
+        move_priors = [self.encoder.decode_policy(ps, state.legal_moves()) 
+                       for ps, state in zip(priors, game_states)]
         
         predictions = [(priors, value[0]) 
                        for priors, value in zip(move_priors, values)]
@@ -364,7 +357,7 @@ class SixPlaneEncoder():
     the game board.
     """
         
-    def encode(self, game_state, return_pieces=False):
+    def encode(self, game_state):
         """
         A game state is encoded as six 7x7 planes (or a tensor with shape 
         (7,7,6)) as described below.
@@ -390,28 +383,30 @@ class SixPlaneEncoder():
         """
         board_tensor = np.zeros((7,7,6))
         player = game_state.player
+        game_set = game_state.game_set
         
         if player == 1:
-            pieces = game_state.game_set.white_pieces
             board_tensor[:, :, 4] = 1
         else:
-            pieces = game_state.game_set.black_pieces
             board_tensor[:, :, 5] = 1
         
-        for (r, c) in game_state.game_set.white_pieces:
-            piece = game_state.game_set.board[(r, c)]
-            board_tensor[r,c,1 - player] = 1
-            if piece == 2:
-                board_tensor[r,c,2 - player] = 1
+        # white soldier pieces
+        for piece in range(1, 11, 2):
+            r, c = game_set.piece_position(piece)
+            board_tensor[r, c, 1 - player] = 1
             
-        for (r, c) in game_state.game_set.black_pieces:
-            board_tensor[r,c,1 + player] = 1
+        # King piece
+        r, c = game_set.piece_position(1)
+        board_tensor[r, c, 2 - player] = 1
         
-        if return_pieces:
-            return board_tensor, pieces
+        # black soldier pieces
+        for piece in range(2, 18, 2):
+            r, c = game_set.piece_position(piece)
+            board_tensor[r, c, 1 + player] = 1
+            
         return board_tensor
     
-    def decode_policy(self, model_output, pieces):
+    def decode_policy(self, model_output, legal_moves):
         """
         The policy head of the ZeroNet outputs a tensor with shape (7,7,24)
         containing a probaility distribution over possible moves to make.
@@ -433,19 +428,25 @@ class SixPlaneEncoder():
         is output_tensor[3, 2, 7].
         """
         move_priors = {}
-        for (xi, yi) in pieces:
-            for i, yf in enumerate(range(yi-1, -1, -1)):
-                move_priors[(xi, yi, xi, yf)] = model_output[xi, yi, i]
-                
-            for i, yf in enumerate(range(yi+1, 7)):
-                move_priors[(xi, yi, xi, yf)] = model_output[xi, yi, i+6]
-                
-            for i, xf in enumerate(range(xi-1, -1, -1)):
-                move_priors[(xi, yi, xf, yi)] = model_output[xi, yi, i+12]
-                
-            for i, xf in enumerate(range(xi+1, 7)):
-                move_priors[(xi, yi, xf, yi)] = model_output[xi, yi, i+18]
+        N = 0
         
+        for (xi, yi, xf, yf) in legal_moves:
+            if yf < yi:
+                n = 6 - (yi - yf)
+            elif yf > yi:
+                n = 5 + (yf - yi)
+            elif xf < xi:
+                n = 18 - (xi - xf)
+            elif xf > xi:
+                n = 17 + (xi - xf)
+            
+            prior = model_output[xi, yi, n]
+            move_priors[(xi, yi, xf, yf)] = prior
+            N += prior
+            
+        for move in move_priors.keys():
+            move_priors[move] /= N
+            
         return move_priors
     
     def encode_prior(self, move_probs):

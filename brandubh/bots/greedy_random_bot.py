@@ -33,7 +33,7 @@ class GreedyRandomBot:
         # Get all moves that result in a win. If there are any, randomly select
         # one of those moves.
         winning_moves = self.get_winning_moves(candidates, game_state)
-        if len(winning_moves) > 0:
+        if winning_moves:
             return Act.play(random.choice(winning_moves))
         
         if self.filter_losing_moves:
