@@ -764,14 +764,6 @@ class TreeClimber:
             return None
         
     def branch_score(self, move):
-        # TODO: refactor this function to be a method of the climber class
-        # (so it's not defined every select_branch call, can make 
-        # c_sqrt_total_n an attribute of th climber class to make this 
-        # possible) and maybe inline the node method calls, or fuse them 
-        # together to maintain encapsulation.
-        # q = self.node.expected_value(move)
-        # p = self.node.prior(move)
-        # n = self.node.visit_count(move)
         q, p, n = self.node.branch_score_stats(move)
         return q + p * self.c_sqrt_total_n/(1+n)
         

@@ -424,7 +424,7 @@ class SixPlaneEncoder():
         Values of the third index ranging from 12 to 23 similarly correspond to
         either decreasing or increasing the x coordinate of the piece.
         
-        So the prior for moving the piece at square (3, 2) 2 places to (3, 4)
+        Eg. the prior for moving the piece at square (3, 2) 2 places to (3, 4)
         is output_tensor[3, 2, 7].
         """
         move_priors = {}
@@ -438,7 +438,7 @@ class SixPlaneEncoder():
             elif xf < xi:
                 n = 18 - (xi - xf)
             elif xf > xi:
-                n = 17 + (xi - xf)
+                n = 17 + (xf - xi)
             
             prior = model_output[xi, yi, n]
             move_priors[(xi, yi, xf, yf)] = prior

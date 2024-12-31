@@ -1,3 +1,4 @@
+# cython: linetrace=True
 """
 Created on Thu Dec 26 13:55:09 2019
 
@@ -69,7 +70,7 @@ cdef class GameSet:
     The coordinates of black pieces are stored in even slots of these arrays
     while those for white pieces are stored in odd slots. For technical reasons
     some of the slots in these arrays are left redundant. Below is an outline
-    of how the slots are used, this in turns determines how pieces on the board
+    of how the slots are used, this in turn determines how pieces on the board
     are numbered. 
     (Note, N = unused slot, K = king, b = black soldier, w = white soldier)
     
@@ -206,6 +207,7 @@ cdef class GameSet:
         the new position of a piece and removes captured pieces
         """
         self._move_piece(ir, ic, fr, fc)
+
 
     cdef void _move_piece(self, int ir, int ic, int fr, int fc):
         cdef int dr, dc, nr, nc, nnr, nnc
@@ -586,6 +588,7 @@ cdef class GameState:
 
         return moves
     
+    
     def moves_into_previous_board_position(self, 
                                            int ir, 
                                            int ic, 
@@ -600,6 +603,7 @@ cdef class GameState:
             return 'You cannot move into a previous board position'
         else:
             return None
+    
     
     cdef bint _moves_into_previous_board_position(self, 
                                                   int ir, 
