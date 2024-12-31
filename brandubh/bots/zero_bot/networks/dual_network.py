@@ -465,7 +465,7 @@ class ThreePlaneEncoder():
             elif xf < xi:
                 n = 18 - (xi - xf)
             elif xf > xi:
-                n = 17 + (xi - xf)
+                n = 17 + (xf - xi)
             
             prior = model_output[xi, yi, n]
             move_priors[(xi, yi, xf, yf)] = prior
