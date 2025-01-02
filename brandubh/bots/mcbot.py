@@ -209,7 +209,9 @@ class MCTSNode:
                             1: 0}
         self.num_rollouts = 0
         self.children = {}
-        self.unvisited_moves = game_state.legal_moves()
+        
+        all_moves, winning_moves = game_state.legal_moves()
+        self.unvisited_moves = winning_moves if winning_moves else all_moves
         
         self.depth = depth
     

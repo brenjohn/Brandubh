@@ -278,7 +278,7 @@ class DualNet():
                 b += 1
         
         # decode the policy predictions into move-prior dictionaries.
-        move_priors = [self.encoder.decode_policy(ps, state.legal_moves()) 
+        move_priors = [self.encoder.decode_policy(ps, state.legal_moves()[0]) 
                        for ps, state in zip(priors, game_states)]
         
         predictions = [(priors, value[0]) 

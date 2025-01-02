@@ -24,36 +24,18 @@ class GreedyRandomBot:
         """Choose a random valid move."""
         
         # Get a list of possible moves
-        candidates = game_state.legal_moves()
+        all_moves, winning_moves = game_state.legal_moves()
+        candidates = winning_moves if winning_moves else all_moves
         
         # If there's no candidate moves then pass the turn
         if not candidates:
             return Act.pass_turn()
-        
-        # Get all moves that result in a win. If there are any, randomly select
-        # one of those moves.
-        winning_moves = self.get_winning_moves(candidates, game_state)
-        if winning_moves:
-            return Act.play(random.choice(winning_moves))
         
         if self.filter_losing_moves:
             candidates = self.remove_losing_moves(candidates, game_state)
         
         # return a random move from the list of candidates
         return Act.play(random.choice(candidates))
-    
-    def get_winning_moves(self, candidate_moves, game_state):
-        """
-        Returns a list of moves from candidate_moves that result in a win.
-        """
-        winning_moves = []
-        for move in candidate_moves:
-            next_state = game_state.copy()
-            next_state.take_turn_with_no_checks(Act.play(move))
-            if not next_state.winner == 0:
-                winning_moves.append(move)
-                
-        return winning_moves
     
     def remove_losing_moves(self, moves, game_state):
         """
@@ -74,15 +56,7 @@ class GreedyRandomBot:
         # up moves.
         next_state = game_state.copy()
         next_state.take_turn_with_no_checks(Act.play(move))
-        candidates = next_state.legal_moves()
-        
-        # Check if any of the follow up moves end the game.
-        for m in candidates:
-            next_next_state = next_state.copy()
-            next_next_state.take_turn_with_no_checks(Act.play(m))
-            if not next_next_state.winner == 0:
-                return False
-            
-        return True
+        all_moves, winning_moves = next_state.legal_moves()
+        return False if winning_moves else True
             
         

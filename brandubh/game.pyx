@@ -538,7 +538,8 @@ cdef class GameState:
         """
         cdef int player = self._player
         cdef GameSet game_set = self._game_set
-        moves = []
+        all_moves = []
+        winning_moves = []
 
         # If the player is white, we want to loop over all white pieces,
         # otherwise we want to loop over all black pieces.
@@ -553,6 +554,9 @@ cdef class GameState:
         cdef int[4] directions_r = (0, 0, -1, 1)
         cdef int[4] directions_c = (-1, 1, 0, 0)
         cdef int dr, dc, ir, ic, fr, fc, i, piece
+        
+        cdef GameSet next_game_set
+        cdef bytes next_board
         
         # Loop over the player's pieces.
         for piece in range(first, last, 2):
@@ -579,14 +583,32 @@ cdef class GameState:
                             break
                         if game_set._get_piece(fr, fc) != 0:
                             break
-                        if game_set._is_special_square(fr, fc) and piece != 1:
-                            break
-                        if self._moves_into_previous_board_position(ir, ic, 
-                                                                    fr, fc):
+                        
+                        # TODO: maybe reduce the number of appends by only
+                        # having non-winning moves in the moves list?
+                        if piece != 1:
+                            if game_set._is_special_square(fr, fc):
+                                continue
+                        else:
+                            if game_set._is_hostile_square(fr, fc):
+                                winning_moves.append((ir, ic, fr, fc))
+                                all_moves.append((ir, ic, fr, fc))
+                                continue
+                            
+                        next_game_set = self.get_next_position(ir, ic, fr, fc)
+                        
+                        if next_game_set._king_captured():
+                            winning_moves.append((ir, ic, fr, fc))
+                            all_moves.append((ir, ic, fr, fc))
                             continue
-                        moves.append((ir, ic, fr, fc))
+                        
+                        next_board = next_game_set._board_state()
+                        if self.has_been_played(next_board):
+                            continue
+                        
+                        all_moves.append((ir, ic, fr, fc))
 
-        return moves
+        return all_moves, winning_moves
     
     
     def moves_into_previous_board_position(self, 
@@ -612,15 +634,23 @@ cdef class GameState:
                                                   int fc):
         # Create the board position the game would be in if the specified 
         # move was made.
+        cdef GameSet next_game_set = self.get_next_position(ir, ic, fr, fc)
+        cdef bytes next_board = next_game_set._board_state()
+        return self.has_been_played(next_board)
+    
+    
+    cdef GameSet get_next_position(self, int ir, int ic, int fr, int fc):
         cdef GameSet next_game_set = self._game_set._copy()
         next_game_set._move_piece(ir, ic, fr, fc)
-        cdef bytes next_board = next_game_set._board_state()
+        return next_game_set
         
-        # Check if the above board position matches any of the board positions
+        
+    cdef bint has_been_played(self, bytes board):
+        # Check if the given board position matches any of the board positions
         # in the game history.
         historic_state = self._history
         while not historic_state == None:
-            if next_board == historic_state._board:
+            if board == historic_state._board:
                 return True
             historic_state = historic_state._previous_state
         else:

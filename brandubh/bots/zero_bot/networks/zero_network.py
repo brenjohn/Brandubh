@@ -222,7 +222,7 @@ class ZeroNet():
         priors = self.intrp.get_tensor(self.pol_ind)
         values = self.intrp.get_tensor(self.val_ind)
         
-        move_priors = [self.encoder.decode_policy(ps, state.legal_moves()) 
+        move_priors = [self.encoder.decode_policy(ps, state.legal_moves()[0]) 
                        for ps, state in zip(priors, game_states)]
         
         predictions = [(priors, value[0]) 
