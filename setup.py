@@ -12,11 +12,6 @@ import shutil
 from setuptools import setup, Extension
 from Cython.Build import cythonize
 
-# setup(
-#     name='Brandubh',
-#     ext_modules = cythonize("brandubh/game.pyx") #, annotate=True)
-# )
-
 
 CYTHON_TRACE = os.getenv("CYTHON_TRACE", "0") == "1"
 
@@ -51,6 +46,7 @@ setup(
                 define_macros=[("CYTHON_TRACE", "1")] if CYTHON_TRACE else [],
             )
         ],
-        compiler_directives={"linetrace": True}
+        # compiler_directives={"linetrace": True},
+        # annotate=True  # Enable annotations
     )
 )

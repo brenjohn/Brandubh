@@ -616,9 +616,8 @@ class TreeNode:
             
     def corresponds_to(self, history_link):
         if history_link:
-            if self.state.player == history_link.player:
-                if self.state.game_set.board_state() == history_link.board:
-                    return True
+            player, game_set = self.state.player, self.state.game_set
+            return history_link.corresponds_to(player, game_set)
         return False
     
     def check_legality(self):

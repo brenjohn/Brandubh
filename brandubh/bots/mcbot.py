@@ -211,7 +211,8 @@ class MCTSNode:
         self.children = {}
         
         all_moves, winning_moves = game_state.legal_moves()
-        self.unvisited_moves = winning_moves if winning_moves else all_moves
+        # self.unvisited_moves = winning_moves if winning_moves else all_moves
+        self.unvisited_moves = all_moves
         
         self.depth = depth
     
@@ -248,9 +249,8 @@ class MCTSNode:
     
     def corresponds_to(self, history_link):
         if history_link:
-            if self.game_state.player == history_link.player:
-                if self.game_state.game_set.board_state() == history_link.board:
-                    return True
+            player, game_set = self.game_state.player, self.game_state.game_set
+            return history_link.corresponds_to(player, game_set)
         return False
     
 

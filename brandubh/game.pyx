@@ -1,4 +1,5 @@
 # cython: linetrace=True
+# cython: language_level=3
 """
 Created on Thu Dec 26 13:55:09 2019
 
@@ -11,6 +12,19 @@ classes:
     GameSet   - representing both the game board and the pieces on the board
     GameState - representing the state of the game for a given board position
 """
+
+from libc.stdint cimport int64_t
+from libc.string cimport memcmp
+
+cdef extern from *:
+    """
+    #define IS_ON_BOARD(r, c) ((0 <= r && r <= 6) && (0 <= c && c <= 6))
+    #define IS_HOSTILE_SQUARE(r, c) ((r == 0 || r == 6) && (c == 0 || c == 6))
+    #define IS_SPECIAL_SQUARE(r, c) ((r == 3 && c == 3) || IS_HOSTILE_SQUARE(r, c))
+    """
+    bint IS_ON_BOARD(int r, int c)
+    bint IS_HOSTILE_SQUARE(int r, int c)
+    bint IS_SPECIAL_SQUARE(int r, int c)
 
 
 class Act:
@@ -82,12 +96,6 @@ cdef class GameSet:
     cdef int[49] board
     cdef int[17] piece_row
     cdef int[17] piece_col
-
-
-    def __init__(self, list board, list piece_row, list piece_col):
-        self.board = board
-        self.piece_row = piece_row
-        self.piece_col = piece_col
         
         
     @classmethod
@@ -96,6 +104,30 @@ cdef class GameSet:
         pieces_row = [-1] * 17
         pieces_col = [-1] * 17
         return GameSet(board, pieces_row, pieces_col)
+    
+    
+    def copy(self):
+        """
+        Returns a copy of this GameSet.
+        """
+        return self._copy()
+    
+    
+    cdef GameSet _copy(self):
+        cdef GameSet game_set = GameSet()
+        game_set.init_board(self.board, self.piece_row, self.piece_col)
+        return game_set
+    
+    
+    cdef void init_board(
+            self, 
+            int[49] board, 
+            int[17] piece_row, 
+            int[17] piece_col
+        ):
+        self.board = board
+        self.piece_row = piece_row
+        self.piece_col = piece_col
     
     
     def game_pieces(self):
@@ -125,32 +157,6 @@ cdef class GameSet:
                 game_pieces[square] = -1
         
         return game_pieces
-     
-    
-    def board_state(self):
-        """
-        Return a byte array representing the board position/state for hashing
-        and quick comparisons. 
-        
-        The board array is first converted to an array with values from 0 to 3
-        such that 0 denotes an empty square, 1 denotes a square with a king,
-        2 denotes a square with a black soldier and 3 denotes a square with a
-        white soldier.
-        
-        The underlying bytes of this new array is then returned.
-        """
-        return self._board_state()
-    
-    cdef bytes _board_state(self):
-        cdef int square, piece
-        cdef int[49] state = self.board
-        
-        for square in range(49):
-            piece = state[square]
-            if piece > 1:
-                state[square] = (piece & 1) + 2
-                
-        return bytes(state)
     
     
     def get_piece(self, int row, int col):
@@ -167,33 +173,21 @@ cdef class GameSet:
         """
         This method checks if a given square is on the board
         """
-        return self._is_on_board(row, col)
-    
-    cdef bint _is_on_board(self, int row, int col):
-        return 0 <= row <= 6 and 0 <= col <= 6
+        return IS_ON_BOARD(row, col)
     
     
     def is_hostile_square(self, int row, int col):
         """
         This method checks if a given square is a hostile square
         """
-        return self._is_hostile_square(row, col)
-    
-    cdef bint _is_hostile_square(self, int row, int col):
-        return ((row == 0 or row == 6) and (col == 0 or col == 6))
+        return IS_HOSTILE_SQUARE(row, col)
 
 
     def is_special_square(self, int row, int col):
         """
         This method checks if a given square is a special square
         """
-        return self._is_special_square(row, col)
-
-    cdef bint _is_special_square(self, int row, int col):
-        if row == col == 3:
-            return True
-        
-        return self.is_hostile_square(row, col)
+        return IS_SPECIAL_SQUARE(row, col)
     
     
     # Return the position of the given piece.
@@ -232,7 +226,8 @@ cdef class GameSet:
             # Get the square on the far side of a neighbouring square and check
             # if it is on the board. If not, continue to the next neighbour.
             nnr, nnc = fr + 2 * dr, fc + 2 * dc
-            if not self._is_on_board(nnr, nnc):
+            # TODO: Why doesn't inlining work here?
+            if not IS_ON_BOARD(nnr, nnc):
                 continue
             
             # Get the neighbouring square.
@@ -244,7 +239,7 @@ cdef class GameSet:
                 continue
 
             # If the far square is a hostile square, capture the enemy piece.
-            if self._is_hostile_square(nnr, nnc):
+            if IS_HOSTILE_SQUARE(nnr, nnc):
                 self.remove_piece(neighbour, nr, nc)
                 continue
 
@@ -290,16 +285,6 @@ cdef class GameSet:
                 if piece > 0:
                     self.piece_row[piece] = row
                     self.piece_col[piece] = col
-    
-    
-    def copy(self):
-        """
-        Returns a copy of this GameSet.
-        """
-        return self._copy()
-    
-    cdef GameSet _copy(self):
-        return GameSet(self.board, self.piece_row, self.piece_col)
     
     
     def king_captured(self):
@@ -411,7 +396,7 @@ cdef class GameState:
             self._game_set._move_piece(ir, ic, fr, fc)
 
             # If King moved to corner square, white wins
-            if self._game_set._is_hostile_square(fr, fc):
+            if IS_HOSTILE_SQUARE(fr, fc):
                 self._winner = 1
             # if action.move[2:] in self.game_set.hostile_squares:
             #     self.winner = 1
@@ -524,7 +509,7 @@ cdef class GameState:
         # Get the board position if the move was made and check that it hasn't
         # occurred already in the game history.
         if valid_move:
-            return self.moves_into_previous_board_position(ri, ci, rf, cf)
+            return self.next_board_already_played(ri, ci, rf, cf)
 
         # If the 'return None' statement is not reached, the move must be 
         # illegal.
@@ -538,8 +523,12 @@ cdef class GameState:
         """
         cdef int player = self._player
         cdef GameSet game_set = self._game_set
-        all_moves = []
-        winning_moves = []
+        
+        cdef list all_moves = [(-1, -1, -1, -1)] * 96
+        cdef list winning_moves = [(-1, -1, -1, -1)] * 96
+        
+        cdef int num_moves = 0
+        cdef int num_winning_moves = 0
 
         # If the player is white, we want to loop over all white pieces,
         # otherwise we want to loop over all black pieces.
@@ -557,6 +546,7 @@ cdef class GameState:
         
         cdef GameSet next_game_set
         cdef bytes next_board
+        cdef tuple[int, int, int, int] move
         
         # Loop over the player's pieces.
         for piece in range(first, last, 2):
@@ -579,7 +569,7 @@ cdef class GameState:
                         # another piece, or is a special square while the
                         # current piece is not a king, move onto looping over
                         # the next direction
-                        if not game_set._is_on_board(fr, fc):
+                        if not IS_ON_BOARD(fr, fc):
                             break
                         if game_set._get_piece(fr, fc) != 0:
                             break
@@ -587,74 +577,54 @@ cdef class GameState:
                         # TODO: maybe reduce the number of appends by only
                         # having non-winning moves in the moves list?
                         if piece != 1:
-                            if game_set._is_special_square(fr, fc):
+                            if IS_SPECIAL_SQUARE(fr, fc):
                                 continue
                         else:
-                            if game_set._is_hostile_square(fr, fc):
-                                winning_moves.append((ir, ic, fr, fc))
-                                all_moves.append((ir, ic, fr, fc))
+                            if IS_HOSTILE_SQUARE(fr, fc):
+                                move = (ir, ic, fr, fc)
+                                winning_moves[num_winning_moves] = move
+                                all_moves[num_moves] = move
+                                num_winning_moves += 1
+                                num_moves += 1
                                 continue
                             
-                        next_game_set = self.get_next_position(ir, ic, fr, fc)
+                        next_game_set = self._game_set._copy()
+                        next_game_set._move_piece(ir, ic, fr, fc)
                         
                         if next_game_set._king_captured():
-                            winning_moves.append((ir, ic, fr, fc))
-                            all_moves.append((ir, ic, fr, fc))
+                            move = (ir, ic, fr, fc)
+                            winning_moves[num_winning_moves] = move
+                            all_moves[num_moves] = move
+                            num_winning_moves += 1
+                            num_moves += 1
                             continue
                         
-                        next_board = next_game_set._board_state()
-                        if self.has_been_played(next_board):
-                            continue
+                        if self._history:
+                            if self._history.has_been_played(next_game_set):
+                                continue
                         
-                        all_moves.append((ir, ic, fr, fc))
+                        move = (ir, ic, fr, fc)
+                        all_moves[num_moves] = move
+                        num_moves += 1
 
-        return all_moves, winning_moves
+        return all_moves[:num_moves], winning_moves[:num_winning_moves]
     
     
-    def moves_into_previous_board_position(self, 
-                                           int ir, 
-                                           int ic, 
-                                           int fr, 
-                                           int fc):
+    def next_board_already_played(self, int ir, int ic, int fr, int fc):
         """
         Checks if moving the piece at (ir, ic) to (fr, fc) moves the game state
         into a board position which has already occurred in the game. Returns 
         an error message if it does and 'None' if it doesn't.
         """
-        if self._moves_into_previous_board_position(ir, ic, fr, fc):
-            return 'You cannot move into a previous board position'
-        else:
-            return None
-    
-    
-    cdef bint _moves_into_previous_board_position(self, 
-                                                  int ir, 
-                                                  int ic, 
-                                                  int fr, 
-                                                  int fc):
-        # Create the board position the game would be in if the specified 
-        # move was made.
-        cdef GameSet next_game_set = self.get_next_position(ir, ic, fr, fc)
-        cdef bytes next_board = next_game_set._board_state()
-        return self.has_been_played(next_board)
-    
-    
-    cdef GameSet get_next_position(self, int ir, int ic, int fr, int fc):
-        cdef GameSet next_game_set = self._game_set._copy()
-        next_game_set._move_piece(ir, ic, fr, fc)
-        return next_game_set
+        cdef GameSet next_game_set
         
+        if self._history:
+            next_game_set = self._game_set._copy()
+            next_game_set._move_piece(ir, ic, fr, fc)
+            if self._history.has_been_played(next_game_set):
+                return 'You cannot move into a previous board position'
         
-    cdef bint has_been_played(self, bytes board):
-        # Check if the given board position matches any of the board positions
-        # in the game history.
-        historic_state = self._history
-        while not historic_state == None:
-            if board == historic_state._board:
-                return True
-            historic_state = historic_state._previous_state
-        else:
-            return False
+        return None
         
 
     def copy(self):
@@ -669,7 +639,7 @@ cdef class GameState:
                          self._winner, 
                          self._history, 
                          self._num_moves)
-    
+
 
 
 cdef class HistoryLink:
@@ -678,19 +648,19 @@ cdef class HistoryLink:
     list. Each link in the list records the board position of a turn in the
     game history and which player was making the next move.
     """
-    cdef bytes       _board
+    cdef int64_t[3]  _board
     cdef int         _player
     cdef int[4]      _last_move
     cdef HistoryLink _previous_state
     cdef int         _turn
     
     def __init__(self, game_set, player, move=None, previous_state=None):
-        self._board = game_set.board_state()
+        get_board_state(self._board, game_set)
         self._player = player
         if move:
             self._last_move = move
         else:
-            self._last_move = (0, 0, 0, 0)
+            self._last_move = (-1, -1, -1, -1)
         self._previous_state = previous_state
         self._turn = 0 if previous_state == None else previous_state.turn + 1
         
@@ -704,9 +674,7 @@ cdef class HistoryLink:
         
     property last_move:
         def __get__(self):
-            cdef int ir, ic, fr, fc
-            ir, ic, fr, fc = self._last_move
-            if ir == ic == fr == fc == 0:
+            if self._last_move[0] == -1:
                 return None
             return tuple(self._last_move)
         
@@ -717,3 +685,55 @@ cdef class HistoryLink:
     property turn:
         def __get__(self):
             return self._turn
+    
+    
+    cdef bint has_been_played(self, GameSet game_set):
+        # Check if the given board position matches any of the board positions
+        # in the game history.
+        cdef int64_t[3] board
+        get_board_state(board, game_set)
+        
+        historic_state = self
+        while historic_state is not None:
+            if memcmp(&board[0], &historic_state._board[0], sizeof(board)) == 0:
+                return True
+            historic_state = historic_state._previous_state
+        else:
+            return False
+    
+    
+    def corresponds_to(self, int player, GameSet game_set):
+        """
+        Checks if the given combination of player and game_set corresponds to
+        the same state this history link represents.
+        """
+        # same_player = player == self.player
+        # return same_player and self.board_state(game_set) == self.board
+        cdef int64_t[3] board
+        
+        if player == self.player:
+            get_board_state(board, game_set)
+            if memcmp(&board[0], &self._board[0], sizeof(board)) == 0:
+                return True
+        return False
+    
+    
+cdef void get_board_state(int64_t[3] state, GameSet game_set):
+    """
+    """
+    cdef int square, piece
+    cdef int64_t mask = 1
+    cdef int[49] board = game_set.board
+    
+    state[0] = state[1] = state[2] = 0
+    
+    for square in range(49):
+        piece = board[square]
+        
+        if piece > 1:
+            state[piece & 1] |= mask
+        
+        elif piece == 1:
+            state[2] |= mask
+            
+        mask <<= 1
