@@ -5,9 +5,10 @@ Created on Thu Dec 26 13:55:09 2019
 
 @author: john
 
-This file defines classes that can be used to implement a game of brandubh.
+This file defines functions and classes that can be used to implement a game of
+brandubh.
 
-classes:
+The main classes are:
     Act       - representing the actions a player can take during their turn
     GameSet   - representing both the game board and the pieces on the board
     GameState - representing the state of the game for a given board position
@@ -16,6 +17,9 @@ classes:
 from libc.stdint cimport int64_t
 from libc.string cimport memcmp
 
+# Here we define some useful macros for inline helper functions. These check
+# if a square (r, c) of the brandubh board is actually on the 7x7 board or is
+# a special or hostile square.
 cdef extern from *:
     """
     #define IS_ON_BOARD(r, c) ((0 <= r && r <= 6) && (0 <= c && c <= 6))
@@ -80,12 +84,12 @@ cdef class GameSet:
     board are numbered 1 to 16 and a zero in this array represents an empty 
     square.
     
-    The row and coloumn coordinates of pieces are stored in two int arrays.
-    The coordinates of black pieces are stored in even slots of these arrays
-    while those for white pieces are stored in odd slots. For technical reasons
-    some of the slots in these arrays are left redundant. Below is an outline
-    of how the slots are used, this in turn determines how pieces on the board
-    are numbered. 
+    The row and coloumn coordinates of pieces are also stored in two int 
+    arrays. The coordinates of black pieces are stored in even slots of these 
+    arrays while those for white pieces are stored in odd slots. For technical 
+    reasons some of the slots in these arrays are left redundant. Below is an 
+    outline of how the slots are used, this in turn determines how pieces on 
+    the board are numbered. 
     (Note, N = unused slot, K = king, b = black soldier, w = white soldier)
     
         [N, K, b, w, b, w, b, w, b, w, b, N, b, N, b, N, b]
@@ -125,6 +129,9 @@ cdef class GameSet:
             int[17] piece_row, 
             int[17] piece_col
         ):
+        """
+        Sets the GameSet attributes to the given values.
+        """
         self.board = board
         self.piece_row = piece_row
         self.piece_col = piece_col
@@ -226,7 +233,6 @@ cdef class GameSet:
             # Get the square on the far side of a neighbouring square and check
             # if it is on the board. If not, continue to the next neighbour.
             nnr, nnc = fr + 2 * dr, fc + 2 * dc
-            # TODO: Why doesn't inlining work here?
             if not IS_ON_BOARD(nnr, nnc):
                 continue
             
@@ -386,7 +392,8 @@ cdef class GameState:
     def take_turn_with_no_checks(self, action):
         """
         This method updates a GameState object by applying the move
-        represented by the given Act object 'action'.
+        represented by the given Act object 'action' without checking it
+        satisfies the rules.
         """
         cdef int ir, ic, fr, fc
         self._num_moves += 1
@@ -518,8 +525,8 @@ cdef class GameState:
 
     def legal_moves(self):
         """
-        This method returns a list of legal moves that can be made given the
-        current game state.
+        This method returns a list of legal moves that can be made from the
+        current game state. A list of winning moves is also returned.
         """
         cdef int player = self._player
         cdef GameSet game_set = self._game_set
@@ -574,8 +581,6 @@ cdef class GameState:
                         if game_set._get_piece(fr, fc) != 0:
                             break
                         
-                        # TODO: maybe reduce the number of appends by only
-                        # having non-winning moves in the moves list?
                         if piece != 1:
                             if IS_SPECIAL_SQUARE(fr, fc):
                                 continue
@@ -634,11 +639,13 @@ cdef class GameState:
         """
         # game_set = copy.deepcopy(self.game_set)
         cdef GameSet game_set = self._game_set._copy()
-        return GameState(game_set, 
-                         self._player, 
-                         self._winner, 
-                         self._history, 
-                         self._num_moves)
+        return GameState(
+            game_set, 
+            self._player, 
+            self._winner, 
+            self._history, 
+            self._num_moves
+        )
 
 
 
@@ -656,14 +663,16 @@ cdef class HistoryLink:
     
     def __init__(self, game_set, player, move=None, previous_state=None):
         get_board_state(self._board, game_set)
+        
         self._player = player
+        self._previous_state = previous_state
+        self._turn = 0 if previous_state == None else previous_state.turn + 1
         if move:
             self._last_move = move
         else:
             self._last_move = (-1, -1, -1, -1)
-        self._previous_state = previous_state
-        self._turn = 0 if previous_state == None else previous_state.turn + 1
         
+    
     property board:
         def __get__(self):
             return self._board
@@ -688,14 +697,16 @@ cdef class HistoryLink:
     
     
     cdef bint has_been_played(self, GameSet game_set):
-        # Check if the given board position matches any of the board positions
-        # in the game history.
+        """
+        Check if the given board position matches any of the board positions in
+        the game history.
+        """
         cdef int64_t[3] board
         get_board_state(board, game_set)
         
         historic_state = self
         while historic_state is not None:
-            if memcmp(&board[0], &historic_state._board[0], sizeof(board)) == 0:
+            if not memcmp(&board[0], &historic_state._board[0], sizeof(board)):
                 return True
             historic_state = historic_state._previous_state
         else:
@@ -707,8 +718,6 @@ cdef class HistoryLink:
         Checks if the given combination of player and game_set corresponds to
         the same state this history link represents.
         """
-        # same_player = player == self.player
-        # return same_player and self.board_state(game_set) == self.board
         cdef int64_t[3] board
         
         if player == self.player:
@@ -720,6 +729,11 @@ cdef class HistoryLink:
     
 cdef void get_board_state(int64_t[3] state, GameSet game_set):
     """
+    Computes three int64 numbers representing the state of the given game_set
+    and places them in the given state array.
+    
+    The bits of the three integers encode the positions of the black soldiers,
+    white soldiers and white king respectively.
     """
     cdef int square, piece
     cdef int64_t mask = 1

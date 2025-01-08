@@ -349,7 +349,7 @@ class ZeroBot:
                 games_won_as_black, 
                 num_games, self.network.num_epochs()]
     
-    #TODO: Should be able to reduce these evaluation functions into a single
+    # TODO: Should be able to reduce these evaluation functions into a single
     # function taking an opponent as an argument. (reduce code)
     def evaluate_against_rand_bot(self, num_games,
                                   moves_to_look_ahead = 0):
