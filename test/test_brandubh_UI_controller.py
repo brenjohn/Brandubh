@@ -80,7 +80,7 @@ class TestBrandubhController(unittest.TestCase):
         mock_input = [curses.KEY_UP, curses.KEY_DOWN, curses.KEY_LEFT, 10, 127,
                       curses.KEY_RIGHT, ord('p'), ord('r'), ord('q')]
         mock_stdscr.getch.side_effect = mock_input
-        mock_bot = Mock()
+        # mock_bot = Mock()
         
         mock_game = Mock()
         # mock_game.history = Mock()
@@ -95,7 +95,7 @@ class TestBrandubhController(unittest.TestCase):
         controller.stdscr = mock_stdscr
         controller.view = mock_view
         
-        controller.play_game("user", mock_bot)
+        controller.play_game("user", "user")
         self.assertTrue(mock_stdscr.getch.call_count == 9, 'incorrect input')
         
     

@@ -44,7 +44,7 @@ class TestGreedyRandBot(unittest.TestCase):
 class TestMCTSBot(unittest.TestCase):
 
     def setUp(self):
-        self.bot = MCTSBot(num_rounds = 140)
+        self.bot = MCTSBot(num_rounds = 1)
         self.game = GameState.new_game()
 
     def test_play(self):

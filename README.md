@@ -32,14 +32,20 @@ python play_brandubh.py
 
 # Running tests
 
-To run unit tests use the following command from the top level directory:
+To run unit tests use the following commands from the top level directory:
 ```
+python setup clean
+python setup.py build_ext --inplace
 python -m unittest
 ```
 
 If the coverage package is installed, a test coverage report can be generated
 with:
 ```
-python -m coverage run -m unittest
-python -m coverage html --omit=/tmp*
+python setup clean
+CYTHON_TRACE=1 python setup.py build_ext --inplace
+coverage run -m unittest discover
+coverage combine
+coverage report
+coverage html
 ```

@@ -39,6 +39,15 @@ class TestBrandubhZero(unittest.TestCase):
         X, Y, R = bot.network.create_training_data(exp)
         self.assertTrue(len(X) == len(Y))
         self.assertTrue(len(X) == len(R))
+        
+        # Test encoding and decoding priors
+        priors = exp[0]['prior_targets'][0]
+        N = sum(priors.values())
+        priors = {k : v/N for k, v in priors.items()}
+        prior_tensor = net.encoder.encode_prior(priors)
+        decoded_priors = net.encoder.decode_policy(prior_tensor, priors.keys())
+        for move in priors.keys():
+            self.assertAlmostEqual(priors[move], decoded_priors[move])
     
     def test_play_DualNet(self):
         net = DualNet()
@@ -61,6 +70,15 @@ class TestBrandubhZero(unittest.TestCase):
         self.assertTrue(len(Xw) == len(Yw))
         self.assertTrue(len(Xb) == len(Rb))
         self.assertTrue(len(Xw) == len(Rw))
+        
+        # Test encoding and decoding priors
+        priors = exp[0]['prior_targets'][0]
+        N = sum(priors.values())
+        priors = {k : v/N for k, v in priors.items()}
+        prior_tensor = net.encoder.encode_prior(priors)
+        decoded_priors = net.encoder.decode_policy(prior_tensor, priors.keys())
+        for move in priors.keys():
+            self.assertAlmostEqual(priors[move], decoded_priors[move])
         
     def get_dummy_experience(self):
         boards = np.array([[[0., 0., 0., 0., 0., 1.],

@@ -21,7 +21,7 @@ class RandomBot:
         """Choose a random valid move."""
         
         # Get a list of possible moves
-        candidates = game_state.legal_moves()
+        candidates = game_state.legal_moves()[0]
         
         # If there's no candidate moves then pass the turn
         if not candidates:

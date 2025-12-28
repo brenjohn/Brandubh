@@ -205,8 +205,8 @@ class BrandubhController:
             
             # Draw the current state of the board on the screen along with any
             # other relevant information for the user.
-            board_pieces = game.game_set.board
-            self.view.draw_game_screen(board_pieces, 
+            game_pieces = game.game_pieces()
+            self.view.draw_game_screen(game_pieces, 
                                        cursor_x, cursor_y, 
                                        game.player, next_move, last_6_moves,
                                        info_message)
