@@ -13,7 +13,7 @@ import random
 import os
 
 from ..game import GameState
-
+from .random_bot import RandomBot
 
 
 def simulate_game(white, black, starting_board=None, max_moves=0, eps=0):
@@ -40,6 +40,7 @@ def simulate_game(white, black, starting_board=None, max_moves=0, eps=0):
     The game will end in a draw if the number of moves exceeds 'max_moves'.
     If 'max_moves' is zero, the game will continue until there is a winner.
     """
+    rand_bot = RandomBot()
     
     if starting_board:
         game = GameState.new_game(starting_board)
@@ -67,7 +68,7 @@ def simulate_game(white, black, starting_board=None, max_moves=0, eps=0):
                 visit_counts[move] = tree_root.branches[move].visit_count
             
             if np.random.rand() < eps:
-                action = bot.rand_bot.select_move(game)
+                action = rand_bot.select_move(game)
             
             if action.is_play:
                 # Encode and record the game-state as well as the visit counts and

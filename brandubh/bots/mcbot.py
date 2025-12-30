@@ -52,9 +52,14 @@ class MCTSBot:
         The child node of the root with the best ranking is selected as the
         next move.
     """
-    is_trainable = False
     
-    def __init__(self, num_rounds=2100, temp=1.4, use_greedy_rand=True):
+    def __init__(
+            self, 
+            num_rounds=2100, 
+            temp=1.4, 
+            use_greedy_rand=True, 
+            **kwargs
+        ):
         self.num_rounds = num_rounds
         self.temperature = temp
         self.bot = GreedyRandomBot() if use_greedy_rand else RandomBot()

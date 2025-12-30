@@ -11,10 +11,7 @@ the AlphaGo-Zero approach.
 import numpy as np
 import os
 
-from ...game import Act, GameState
-from ..random_bot import RandomBot
-from ..greedy_random_bot import GreedyRandomBot
-from ..mcbot import MCTSBot
+from ...game import Act
 from .networks.zero_network import ZeroNet
 
 
@@ -49,9 +46,6 @@ class ZeroBot:
         loss_history           - A list holding the values of the loss 
                                  functions (total loss, soft max - policy head,
                                  mse - value head) during training.
-                     
-        rand_bot   - A bot that makes random moves. Used for evaluating bot
-                     performance after training.
     """
     is_trainable = True
     
@@ -76,6 +70,8 @@ class ZeroBot:
                 self.load_bot(model_dir)
             else:
                 self.network = ZeroNet()
+                
+        self.compile_network((1.0, 0.1))
         
         # TODO: move these to a coach object.
         self.evaluation_history_old = []
@@ -83,11 +79,7 @@ class ZeroBot:
         self.evaluation_history_grnd = []
         self.evaluation_history_mcts = []
         self.loss_history = []
-        
-        
-        self.rand_bot = RandomBot()
-        self.grnd_bot = GreedyRandomBot()
-        self.mcts_bot = MCTSBot(num_rounds=350)
+    
     
     def select_move(self, 
                     game_state, 
@@ -169,6 +161,7 @@ class ZeroBot:
             return Act.pass_turn(), self.root
         return Act.pass_turn()
     
+    
     def update_root_to_current_game_state(self, game_state):
         """
         Checks up to the last two moves in the history of the given game 
@@ -206,6 +199,7 @@ class ZeroBot:
                 
             # Disconnect the root from any parent it might have.
             self.root.parent = None
+    
     
     def update_tree(self):
         """
@@ -270,145 +264,25 @@ class ZeroBot:
             parent.add_child(move, new_node)
         return new_node
         
-    def turn_off_look_a_head(self):
-        self.num_rounds_tmp = self.evals_per_turn
-        self.alpha_tmp = self.alpha
-        self.evals_per_turn = 1
+        
+    def turn_on_eval_mode(self, look_ahead = None, **kwargs):
+        """
+        """
+        self.old_alpha = self.alpha
+        self.old_evals_per_turn = self.evals_per_turn
+        
         self.alpha = 0.0
-        
-    def turn_on_look_a_head(self):
-        self.evals_per_turn = self.num_rounds_tmp
-        self.alpha = self.alpha_tmp
+        if look_ahead is not None:
+            self.evals_per_turn = look_ahead
     
-    def evaluate_against_bot(self, opponent_bot, num_games,
-                             turn_limit = 700,
-                             logger = None):
-        """
-        This method evaluates the current bot against a given opponent bot
-        by letting them play a number of games against each other. The number
-        of games played is specified by 'num_games'. A random starting 
-        position for the games is generated if a maximum number of white and
-        black pieces is given by the parameters 'num_white_pieces' and
-        'num_black_pieces', otherwise the regular starting position is used.
-        
-        If the number of turns taken in a game exceeds the given maximum, then
-        the game ends and drawn up as a win for the opponent bot.
-        """
-        zero_bot_player = 1
-        score = 0
-        games_won_as_black = 0
-        games_won_as_white = 0
-        
-        # Play 'num_games' games of brandubh
-        for i in range(num_games):
-            if logger:
-                msg = 'Playing game {0}, score: w = {1}, b = {2}.'
-                logger.info(msg.format(i, 
-                                       games_won_as_white, 
-                                       games_won_as_black))
-            game = GameState.new_game()
-            
-            # Get both bots to play a game of brandubh.
-            turns_taken = 0
-            while game.is_not_over() and turns_taken < turn_limit:
-                if game.player == zero_bot_player:
-                    action = self.select_move(game)
-                else:
-                    action = opponent_bot.select_move(game)  
-                game.take_turn_with_no_checks(action)
-                turns_taken += 1
-             
-                
-            # At the end of the game, increment counts keeping track of how
-            # many games the current bot won against the opponent bot and 
-            # get the bots to switch sides for the next game.
-            if turns_taken < turn_limit:
-                score += zero_bot_player*game.winner
-                if zero_bot_player == game.winner:
-                    if zero_bot_player == 1:
-                        games_won_as_white += 1
-                    else:
-                        games_won_as_black += 1     
-                zero_bot_player *= -1
-                        
-            else:
-                score -= 1
-                zero_bot_player *= -1
-        
-        if logger:
-            message = 'Finished playing {0} games. Score: w = {1}, b = {2}.'
-            logger.info(message.format(num_games, 
-                                       games_won_as_white, 
-                                       games_won_as_black))
-        
-        # Return the evaluation score of the bot along with fraction of games
-        # won as black/white, the total number of games and the number of
-        # epochs the bot has trained for before being evaluated.
-        return [score/num_games, 
-                games_won_as_white,
-                games_won_as_black, 
-                num_games, self.network.num_epochs()]
     
-    # TODO: Should be able to reduce these evaluation functions into a single
-    # function taking an opponent as an argument. (reduce code)
-    def evaluate_against_rand_bot(self, num_games,
-                                  moves_to_look_ahead = 0):
+    def turn_off_eval_mode(self):
         """
-        Function to evaluate how good the current bot is against a bot who
-        makes random moves.
         """
-        tmp = self.evals_per_turn
-        self.evals_per_turn = moves_to_look_ahead
-        results = self.evaluate_against_bot(self.rand_bot, num_games)
-        self.evaluation_history_rand.append(results)
-        self.evals_per_turn = tmp
+        self.alpha = self.old_alpha
+        self.evals_per_turn = self.old_evals_per_turn
         
-    def evaluate_against_grnd_bot(self, num_games,
-                                  moves_to_look_ahead = 0):
-        """
-        Function to evaluate how good the current bot is against a bot who
-        makes greedy random moves.
-        """
-        tmp = self.evals_per_turn
-        self.evals_per_turn = moves_to_look_ahead
-        results = self.evaluate_against_bot(self.grnd_bot, num_games)
-        self.evaluation_history_grnd.append(results)
-        self.evals_per_turn = tmp
-        
-    def evaluate_against_mcts_bot(self, num_games,
-                                  moves_to_look_ahead = 0,
-                                  turn_limit = 350,
-                                  logger = None):
-        """
-        Function to evaluate how good the current bot is against a bot who
-        makes random moves.
-        """
-        tmp = self.evals_per_turn
-        self.evals_per_turn = moves_to_look_ahead
-        results = self.evaluate_against_bot(self.mcts_bot, 
-                                            num_games,
-                                            turn_limit,
-                                            logger)
-        self.evaluation_history_mcts.append(results)
-        self.evals_per_turn = tmp        
-        
-    def evaluate_against_old_bot(self, num_games,
-                                 moves_to_look_ahead = 0,
-                                 prefix="model_data/old_bot/"):
-        """
-        Function to evaluate how good the current bot is against an older 
-        version of the current bot whoes weights are save under the directory
-        given by the parameter 'prefix'. 
-        """
-        tmp = self.evals_per_turn
-        self.evals_per_turn = moves_to_look_ahead
-        # print('Evaluating against old bot')
-        old_bot = ZeroBot(1)
-        old_bot.load_old_bot(prefix)
-        results = self.evaluate_against_bot(old_bot, num_games)
-        self.evaluation_history_old.append(results)
-        self.evals_per_turn = tmp
-        
+    
     def save_losses(self, loss_history):
         """
         Method to save the evaulations of the loss function of the neural
@@ -416,6 +290,7 @@ class ZeroBot:
         """
         losses = [loss[0] for loss in loss_history.history.values()]
         self.loss_history.append(losses)
+    
     
     def save_bot(self, prefix="model_data/"):
         """
@@ -437,6 +312,7 @@ class ZeroBot:
         
         np.save(prefix + "model_attributes.npy", attributes)
         
+    
     def load_bot(self, prefix="model_data/"):
         """
         Method to load the attributes and neural network saved under the given
@@ -456,21 +332,11 @@ class ZeroBot:
         network_load_command = attributes["network_load_command"]
         exec(network_load_command)
         self.network.load_network(prefix)
-        
-    def save_as_old_bot(self, prefix="model_data/old_bot/"):
-        """
-        Method to save the current bot as the 'old_bot' used in bot evaluation.
-        """
-        self.save_bot(prefix)
-        
-    def load_old_bot(self, prefix="model_data/old_bot/"):
-        """
-        Method to load the old_bot for evaluating the current bot.
-        """
-        self.load_bot(prefix)
+    
         
     def compile_network(self, loss_weights):
         self.network.compile_network(*loss_weights)
+    
     
     def get_DataManager(self, max_bank_size = 0):
         """

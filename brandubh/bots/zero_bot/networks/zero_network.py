@@ -85,10 +85,10 @@ class ZeroNet():
         self.training_rounds = 0
         self.batch_size = 0
         
-        self.stop_criteria = EarlyStopping(monitor="loss",
-                                           patience=7,
-                                           mode="min",
-                                           restore_best_weights=True)
+        # self.stop_criteria = EarlyStopping(monitor="loss",
+        #                                    patience=7,
+        #                                    mode="min",
+        #                                    restore_best_weights=True)
         
     def compile_lite_model(self):
         converter = tf.lite.TFLiteConverter.from_keras_model(self.model)
@@ -193,10 +193,17 @@ class ZeroNet():
                       outputs=[policy_output, value_output])
         return model
     
-    def compile_network(self, policy_weight, value_weight):
-        self.model.compile(optimizer = Adam(),
-                           loss = ['categorical_crossentropy', 'mse'],
-                           loss_weights = [policy_weight, value_weight])
+    def compile_network(
+            self, 
+            policy_weight, 
+            value_weight,
+            learning_rate = 0.0001
+        ):
+        self.model.compile(
+            optimizer = Adam(learning_rate=learning_rate,),
+            loss = ['categorical_crossentropy', 'mse'],
+            loss_weights = [policy_weight, value_weight]
+        )
     
     def predict(self, game_states):
         """
@@ -261,15 +268,17 @@ class ZeroNet():
         self.compile_lite_model()
         if os.path.exists(prefix + "zero_network_attributes.npy"):
             self.loss_history = np.load(prefix + "zero_network_attributes.npy",
-                                        allow_pickle='TRUE').item()
+                                        allow_pickle=True).tolist()
         
     def train(self, training_data, batch_size, epochs=1):
         X, Y, rewards = training_data
         lr_schedule = self.get_lr_schedule()
-        loss = self.model.fit(X, [Y, rewards],
-                              batch_size=batch_size, 
-                              epochs=epochs,
-                              callbacks=[self.stop_criteria, lr_schedule])
+        loss = self.model.fit(
+            X, [Y, rewards],
+            batch_size=batch_size, 
+            epochs=epochs,
+            #callbacks=[self.stop_criteria, lr_schedule]
+        )
         self.compile_lite_model()
         self.save_losses(loss)
         
