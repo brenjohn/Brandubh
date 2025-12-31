@@ -324,7 +324,7 @@ class ZeroNet():
             num_moves = Xi.shape[0]
             X.append(Xi)
             
-            visit_counts = episode['prior_targets']
+            visit_counts = episode['visit_counts']
             policy_targets = self.encoder.encode_priors(visit_counts)
             
             # The reward for moves decays exponentially with the number of
@@ -402,16 +402,19 @@ class SixPlaneEncoder():
         # white soldier pieces
         for piece in range(1, 11, 2):
             r, c = game_set.piece_position(piece)
-            board_tensor[r, c, 1 - player] = 1
+            if r > -1:
+                board_tensor[r, c, 1 - player] = 1
             
         # King piece
         r, c = game_set.piece_position(1)
-        board_tensor[r, c, 2 - player] = 1
+        if r > -1:
+            board_tensor[r, c, 2 - player] = 1
         
         # black soldier pieces
         for piece in range(2, 18, 2):
             r, c = game_set.piece_position(piece)
-            board_tensor[r, c, 1 + player] = 1
+            if r > -1:
+                board_tensor[r, c, 1 + player] = 1
             
         return board_tensor
     

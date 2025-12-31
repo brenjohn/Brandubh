@@ -12,7 +12,7 @@ import numpy as np
 import os
 
 from ...game import Act
-from .networks.zero_network import ZeroNet
+from .zero_network import ZeroNet
 
 
 class ZeroBot:
@@ -79,8 +79,7 @@ class ZeroBot:
     
     def select_move(
             self, 
-            game_state, 
-            return_search_tree=False, 
+            game_state,
             reuse_search_tree=True
         ):
         """
@@ -105,7 +104,6 @@ class ZeroBot:
         # the given game state. Otherwise, start with a tree consisting of a 
         # root node only. The root node is associated with the given board 
         # position.
-        # TODO: properly set dirichlet noise on reused roots.
         if reuse_search_tree:
             self.update_root_to_current_game_state(game_state)
             
@@ -118,8 +116,6 @@ class ZeroBot:
         # the turn. This happens when all of the players pieces are surrounded,
         # if the player has no pieces left or if the game is over. 
         if not self.root.branches:
-            if return_search_tree:
-                return Act.pass_turn(), self.root
             return Act.pass_turn()
         
         # Run the hybrid neural network - Monte Carlo tree search algorithm to
@@ -129,10 +125,7 @@ class ZeroBot:
         # Select one of the the possible moves using visit count statistics
         # from the tree.
         act = self._select_move(num_turns = game_state.num_moves)
-        if return_search_tree:
-            return act, self.root
         return act
-    
     
     
     def _select_move(self, num_turns):
@@ -165,9 +158,9 @@ class ZeroBot:
         return Act.pass_turn()
         
     
-    
     def update_root_to_current_game_state(self, game_state):
-        """Attempts to reuse the existing search tree by finding the current 
+        """
+        Attempts to reuse the existing search tree by finding the current 
         game_state within the tree's descendants.
         """
         # If a search tree is saved.

@@ -10,6 +10,7 @@ import sys
 sys.path.append("..")
 sys.path.append("../..")
 
+import json
 import toml
 import argparse
 import shutil
@@ -25,9 +26,8 @@ if gpu_devices:
         tf.config.experimental.set_memory_growth(device, True)
 
 from brandubh.bots.zero_bot.brandubh_zero import ZeroBot
-from brandubh.bots.zero_bot.networks.zero_network import ZeroNet
-from brandubh.bots.training_utils import gain_experience
-from brandubh.bots.training_utils import save_training_data
+from brandubh.bots.zero_bot.zero_network import ZeroNet
+from brandubh.bots.zero_bot.training import gain_experience, save_experience
 from brandubh.bots.evaluate import Evaluator
 
 
@@ -73,13 +73,13 @@ def main(parameter_file):
         cycle += 1
         
         print('\nGainning experience, cycle {0}'.format(cycle))
-        exp = gain_experience(bot, bot, num_episodes, move_limit, eps)
+        exp = gain_experience(bot, num_episodes, move_limit, eps)
+        save_experience(output_dir, cycle, exp)
         
         print('Preparing training data')
         # Add the generated experience to the bank of training data and load 
         # all training data
         training_data = bot.network.create_training_data(exp)
-        save_training_data(training_data, cycle)
         data_manager.append_data(training_data)
         
         print('\nTraining network, cycle {0}'.format(cycle))
@@ -100,6 +100,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--parameter_file', 
         type=Path,
+        default='./train_parameters.toml',
         help="Path to the training parameter file"
     )
     
