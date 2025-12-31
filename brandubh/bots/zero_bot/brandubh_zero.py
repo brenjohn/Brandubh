@@ -24,67 +24,65 @@ class ZeroBot:
     is the move corresponding to the most visited branch during this tree 
     search.
     
-    Attributes:
-        num_rounds - The number of nodes that will be added to the tree 
-                     structure created when selecting a move. For larger 
-                     num_rounds, the bot will take longer to choose a move but
-                     it should also pick stringer moves.
+    Arguments:
+        evals_per_turn : 
+            The number of nodes that will be added to the tree structure when 
+            selecting a move. For larger num_rounds, the bot will take longer 
+            to choose a move but it should also pick stringer moves.
+            
+        batch_size :
+            The number of tree nodes to evaluate at any one time.
+        
+        c :
+            A parameter to balance exploration and exploitation. The bot will 
+            explore more for larger c.
                      
-        c          - A parameter to balance exploration and exploitation. The
-                     bot will explore more for larger c.
+        alpha :
+            The dirichlet noise parameter. The noise is used to increase the 
+            probabilty random moves get explored during move selection.
                      
-        alpha      - The dirichlet noise parameter. The noise is used to
-                     increase the probabilty random moves get explored during
-                     move selection.
-                     
-        evaluation_history_old - An array holding results of evaluations of
-                                 the bot against an older version of the bot.
-                                 
-        evaluation_history_ran - An array holding results of evaluations of
-                                 the bot against a bot that makes random moves.
-                                 
-        loss_history           - A list holding the values of the loss 
-                                 functions (total loss, soft max - policy head,
-                                 mse - value head) during training.
+        sampling_turns :
+            The number of turns at the start of a game where moves will be
+            sampled from a probability distribution defined by the move visit
+            count statitics in the tree. After this number of turns, the move
+            with the largest visit count is selected.
+            
+        network :
+            The neural network to use.
     """
-    is_trainable = True
     
-    def __init__(self, 
-                 evals_per_turn = 7000, 
-                 batch_size = 70,
-                 c = 1.4,
-                 alpha = 0.15,
-                 network = None):
+    def __init__(
+            self, 
+            evals_per_turn = 7000, 
+            batch_size = 70,
+            c = 1.4,
+            alpha = 0.15,
+            sampling_turns = 6,
+            network = None
+        ):
         self.evals_per_turn = evals_per_turn
-        self.alpha = alpha
         self.batch_size = batch_size
         self.c = c
-        self.climbers = [TreeClimber(c) for i in range(batch_size)]
-        self.root = None
+        self.alpha = alpha
+        self.sampling_turns = sampling_turns
+        
         if network:
             self.network = network
         else:
-            prefix = os.path.dirname(__file__)
-            model_dir = prefix + "/model_data/trained_model_data/"
-            if os.path.isdir(model_dir):
-                self.load_bot(model_dir)
-            else:
-                self.network = ZeroNet()
+            self.network = ZeroNet()
                 
         self.compile_network((1.0, 0.1))
         
-        # TODO: move these to a coach object.
-        self.evaluation_history_old = []
-        self.evaluation_history_rand = []
-        self.evaluation_history_grnd = []
-        self.evaluation_history_mcts = []
-        self.loss_history = []
+        self.climbers = [TreeClimber(c) for i in range(batch_size)]
+        self.root = None
     
     
-    def select_move(self, 
-                    game_state, 
-                    return_search_tree=False, 
-                    reuse_search_tree=True):
+    def select_move(
+            self, 
+            game_state, 
+            return_search_tree=False, 
+            reuse_search_tree=True
+        ):
         """
         Select a move to make from the given board position (game_state).
         
@@ -111,9 +109,8 @@ class ZeroBot:
         if reuse_search_tree:
             self.update_root_to_current_game_state(game_state)
             
-        if not self.root:
+        if self.root is None:
             self.root = self.create_root_node(game_state.copy())
-        # self.root = self.create_root_node(game_state.copy())
         self.root.add_noise(self.alpha)
         
         
@@ -128,76 +125,86 @@ class ZeroBot:
         # Run the hybrid neural network - Monte Carlo tree search algorithm to
         # update the current search tree with new board evaluations.
         self.update_tree()
-               
-        # TODO: The rest of this function could go into a "sample_move" func.
-        # Get a list of possible moves sorted according to visit count,
-        # the move with the highest visit count should be first in the list.
-        # From the list of all possible next moves, select a move with one of
-        # the following method:
-        #
-        # 1) if the number of moves in the game is less than a certain 
-        # threshold, pick randomly according to a prob dist defined by the
-        # visit counts.
-        #
-        # 2) Pick the move with the highest visit count.
+        
+        # Select one of the the possible moves using visit count statistics
+        # from the tree.
+        act = self._select_move(num_turns = game_state.num_moves)
+        if return_search_tree:
+            return act, self.root
+        return act
+    
+    
+    
+    def _select_move(self, num_turns):
+        """
+        Creates a list of possible moves and selects a one with one of the 
+        following methods:
+        
+        1) If the number of turns in the game is less than a certain 
+        threshold, the move is randomly sampled from the prob dist defined by 
+        the visit counts.
+        
+        2) Otherwise, the move with the highest visit count is selected.
+        """
         moves = [move for move in self.root.moves()]
         if moves:
-            if game_state.num_moves < 6:
-                p = np.asarray([self.root.branches[move].visit_count 
-                                for move in moves])
-                p = p/sum(p)
-                # TODO: p is all zeros when evals_per_turn is 0
-                move = moves[np.random.choice(len(moves), p=p)]
+            if num_turns < self.sampling_turns:
+                move_distribution = np.asarray([
+                    self.root.branches[move].visit_count for move in moves
+                ])
+                move_distribution = move_distribution / sum(move_distribution)
+                move_ind = np.random.choice(len(moves), p=move_distribution)
+                move = moves[move_ind]
             else:
                 move = max(moves, key=self.root.visit_count)
             
-            # Loop through the sorted moves and return the first legal one.
-            if return_search_tree:
-                return Act.play(move), self.root
+            # Return the move as an Act.
             return Act.play(move)
         
         # If no legal move is found then pass the turn.
-        if return_search_tree:
-            return Act.pass_turn(), self.root
         return Act.pass_turn()
+        
     
     
     def update_root_to_current_game_state(self, game_state):
-        """
-        Checks up to the last two moves in the history of the given game 
-        state. If the root of the currently saved search tree corresponds to 
-        one of the previous game states, the current root so updated to point 
-        to the root of the subtree relevant to selecting the next move for the
-        given game state. If the root doesn't correspond to any of the 
-        previous states, or if a relevant subtree doesn't exists, the root is
-        set to None so that a new search tree can be created.
+        """Attempts to reuse the existing search tree by finding the current 
+        game_state within the tree's descendants.
         """
         # If a search tree is saved.
-        if self.root:
-            # Collect the moves made since the last turn taken.
-            moves_since_last_turn = []
-            historic_state = game_state.history
-            for steps in range(3):
-                if self.root.corresponds_to(historic_state):
-                    break
-                elif historic_state.previous_state:
-                    moves_since_last_turn.insert(0, historic_state.last_move)
-                    historic_state = historic_state.previous_state
+        if self.root is None:
+            return
+        
+        # Collect the moves made since the last turn taken.
+        moves_since_last_turn = []
+        historic_state = game_state.history
+        root_found = False
+        
+        for _ in range(3):
+            if self.root.corresponds_to(historic_state):
+                root_found = True
+                break
+            if historic_state.previous_state is not None:
+                moves_since_last_turn.insert(0, historic_state.last_move)
+                historic_state = historic_state.previous_state
             else:
-                # Set the root to None if it isn't in the local history.
+                break
+        
+        # Set the root to None if it isn't in the local history.
+        if not root_found:
+            self.root = None
+            return
+        
+        # Update the root with the moves made since the last turn.
+        for move in moves_since_last_turn:
+            if self.root.has_child(move):
+                self.root = self.root.get_child(move)
+            else:
+                # Set root to none if a relevant subtree doesn't exist.
                 self.root = None
                 return
             
-            # Update the root with the moves made since the last turn.
-            for move in moves_since_last_turn:
-                if self.root.has_child(move):
-                    self.root = self.root.get_child(move)
-                else:
-                    # Set root to none if a relevant subtree doesn't exist.
-                    self.root = None
-                    return
-                
-            # Disconnect the root from any parent it might have.
+        # Disconnect the root from any parent it might have.
+        if self.root is not None:
             self.root.parent = None
     
     
@@ -281,15 +288,6 @@ class ZeroBot:
         """
         self.alpha = self.old_alpha
         self.evals_per_turn = self.old_evals_per_turn
-        
-    
-    def save_losses(self, loss_history):
-        """
-        Method to save the evaulations of the loss function of the neural
-        network on training data.
-        """
-        losses = [loss[0] for loss in loss_history.history.values()]
-        self.loss_history.append(losses)
     
     
     def save_bot(self, prefix="model_data/"):
@@ -302,13 +300,14 @@ class ZeroBot:
             os.makedirs(prefix)
             
         network_load_command = self.network.save_network(prefix)
-        attributes = {"evals_per_turn" : self.evals_per_turn,
-                      "c" : self.c,
-                      "batch_size" : self.batch_size,
-                      "alpha" : self.alpha,
-                      "evaluation_history_old" : self.evaluation_history_old,
-                      "evaluation_history_rand" : self.evaluation_history_rand,
-                      "network_load_command": network_load_command}
+        attributes = {
+            "evals_per_turn" : self.evals_per_turn,
+            "c"              : self.c,
+            "batch_size"     : self.batch_size,
+            "alpha"          : self.alpha,
+            "sampling_turns" : self.sampling_turns,
+            "network_load_command": network_load_command
+        }
         
         np.save(prefix + "model_attributes.npy", attributes)
         
@@ -326,8 +325,6 @@ class ZeroBot:
         self.batch_size = attributes["batch_size"]
         self.climbers = [TreeClimber(self.c) for i in range(self.batch_size)]
         self.alpha = attributes["alpha"]
-        self.evaluation_history_old = attributes["evaluation_history_old"]
-        self.evaluation_history_rand = attributes["evaluation_history_rand"]
         
         network_load_command = attributes["network_load_command"]
         exec(network_load_command)
@@ -395,8 +392,9 @@ class TreeNode:
         # of the node counts as the first visit so is initialised to 1.
         self.total_visit_count = 1
         
-        self.branches = {move : Branch(prior) 
-                         for move, prior in priors.items()}
+        self.branches = {
+            move : Branch(prior) for move, prior in priors.items()
+        }
                 
         self.children = {}
          

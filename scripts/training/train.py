@@ -58,13 +58,16 @@ def main(parameter_file):
     train_params = params['Training']
     num_episodes = train_params['num_episodes']
     move_limit = train_params['move_limit']
+    train_size = train_params['train_size']
+    batch_size = train_params['batch_size']
+    num_cycles = train_params['num_cycles'] # TODO: use this
     eps = 0.07
     
     evaluation_rate = params['evaluation_rate']
     evaluation_opponents = params['Evaluation']
     evaluator = Evaluator(output_dir, evaluation_opponents)
     
-    cycle = 0
+    cycle = -1
     data_manager = bot.get_DataManager()
     while True:
         cycle += 1
@@ -80,8 +83,8 @@ def main(parameter_file):
         data_manager.append_data(training_data)
         
         print('\nTraining network, cycle {0}'.format(cycle))
-        training_data = data_manager.sample_training_data(1024)
-        bot.network.train(training_data, batch_size=256)
+        training_data = data_manager.sample_training_data(train_size)
+        bot.network.train(training_data, batch_size=batch_size)
         bot.save_bot("model_data/model_curr_data/")
         
         if cycle % evaluation_rate == 0:
