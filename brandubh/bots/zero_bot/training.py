@@ -39,16 +39,19 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
     rand_bot = RandomBot()
     game = GameState.new_game(starting_board)
         
-    boards, moves, prior_targets, players = [], [], [], []
+    boards, moves, move_priors, tree_stats, players = [], [], [], [], []
     num_moves = 0
     
     while game.is_not_over() and num_moves < max_moves:
         
         # Get the bot to pick the next move and get the distribution of visits.
         action = bot.select_move(game)
-        tree_root = bot.root
         
         # Get the visit counts of the branches.
+        tree_root = bot.root
+        moves, _ = game.legal_moves()
+        stats = tree_root.get_search_stats(moves)
+        # TODO: Maybe there should be a TreeNode method for the below
         visit_counts = {}
         for move in tree_root.branches.keys():
             visit_counts[move] = tree_root.branches[move].visit_count
@@ -59,11 +62,11 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
         if action.is_play:
             # Encode and record the game-state as well as the visit counts and
             # the player that made the move.
-            # TODO: Record number of nodes (total visit counts) in the tree here also.
             board_tensor = bot.network.encoder.encode(game)
             boards.append(board_tensor)
             moves.append(action.move)
-            prior_targets.append(visit_counts)
+            tree_stats.append(stats)
+            move_priors.append(visit_counts)
             players.append(game.player)
             
         # Make the move. The select_move method should always return a legal
@@ -71,7 +74,7 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
         game.take_turn_with_no_checks(action)
         num_moves += 1
                 
-    return boards, moves, prior_targets, players, game.winner
+    return boards, moves, move_priors, tree_stats, players, game.winner
 
 
 
@@ -92,12 +95,13 @@ def gain_experience(bot, num_episodes, moves_limit = 0, eps = 0):
             
         # Play a game and collect the generated data.
         game_details = self_play(bot, None, moves_limit, eps)
-        boards, moves_played, visit_counts, players, winner = game_details
+        boards, moves, visit_counts, tree_stats, players, winner = game_details
         
         episode = {}
         episode['boards']       = boards
-        episode['moves_played'] = moves_played
+        episode['moves_played'] = moves
         episode['visit_counts'] = visit_counts
+        episode['tree_stats']   = tree_stats
         episode['players']      = players
         episode['winner']       = winner
         experience.append(episode)
@@ -120,10 +124,7 @@ def save_experience(output_dir, cycle, experience):
     for num, episode in enumerate(experience):
         episode = episode.copy()
         episode['boards'] = [board.tolist() for board in episode['boards']]
-        episode['visit_counts'] = [{
-            str(move) : count 
-            for move, count in visit_counts.items()
-        } for visit_counts in episode['visit_counts']]
+        del episode['visit_counts']
         
         filename = output_dir / f'game_{num}.json'
         with open(filename, 'w') as file:
