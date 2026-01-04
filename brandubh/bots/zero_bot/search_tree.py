@@ -61,6 +61,8 @@ class TreeNode:
     structure, and branch objects containing statistics regarding the search 
     history of the select_move method.
     """
+    c_puct = 1  # Should be manually set before any instances are created.
+    
     def __init__(self, game_state, predicted_value, priors, parent, last_move):
         self.state      = game_state
         self.pred_value = predicted_value
@@ -69,6 +71,7 @@ class TreeNode:
         
         # The creation of a node counts as a visit, so is initialised to 1.
         self.total_visit_count = 1
+        self.c_sqrt_total_n = self.c_puct
         self.children = {}
         self.branches = {
             move : Branch(prior) for move, prior in priors.items()
@@ -116,14 +119,40 @@ class TreeNode:
     def is_not_terminal_leaf(self):
         return self.state.is_not_over()
     
+    def branch_puct_score(self, move):
+        """Returns the PUCT score for the given move. Assumes c_sqrt_total_n
+        is up to date.
+        """
+        q, p, n = self.branch_search_stats(move)
+        return q + p * self.c_sqrt_total_n/(1+n)
+    
     #=========================================================================#
     #                        Tree traversal methods
     #=========================================================================#
     
     # The following methods are used by TreeExplorer objects while traversing
-    # the search tree to update search statistics, lock branches from being
-    # searched by other TreeExplorer objects and update the virtual loss values
-    # of branches.
+    # the search tree to select which move to explore next, update search 
+    # statistics, lock branches from being searched by other TreeExplorer 
+    # objects and update the virtual loss values of branches.
+    
+    def next_move(self):
+        """Selects a move/branch stemming from this node by picking the move 
+        that maximises the following PUCT score:
+            
+            Q + c * p * sqrt(N) / (1+n),
+            
+        where Q = the estimated expected reward for the move,
+              c = a constant balancing exploration-exploitation,
+              p = prior probability for the move,
+              N = The total number of visits to the given node
+              n = the number of those visits that went to the branch 
+                  associated with the move
+                  
+        Christopher D. Rosin - Multi-armed Bandits with Episode Context
+        """
+        self.c_sqrt_total_n = np.sqrt(self.total_visit_count) * self.c_puct
+        moves = self.moves()
+        return max(moves, key=self.branch_puct_score) if moves else None
     
     def increment_virtual_loss(self, move):
         if move is not None:
@@ -191,24 +220,16 @@ class TreeNode:
         avrg_value = {}
         puct_score = {}
         pred_value = {}
-        
-        total_visit_count = self.total_visit_count
-        c_sqrt_total_n = np.sqrt(total_visit_count) * 2
-        
-        def branch_score(move):
-            q = self.expected_value(move)
-            p = self.prior(move)
-            n = self.visit_count(move)
-            return q + p * c_sqrt_total_n/(1+n)
+        self.c_sqrt_total_n = np.sqrt(self.total_visit_count) * self.c_puct
         
         for move in moves:
             move_key = str(move)
             value, prior_prob, visit_count = self.branch_search_stats(move)
             prior_dist[move_key] = prior_prob
-            visit_dist[move_key] = visit_count / total_visit_count
+            visit_dist[move_key] = visit_count / self.total_visit_count
             avrg_value[move_key] = value
-            puct_score[move_key] = branch_score(move)
-            pred_value[move_key] = self.predicted_value(move)
+            puct_score[move_key] = self.branch_puct_score(move)
+            pred_value[move_key] = float(self.predicted_value(move))
             
         return {
             'prior_dist' : prior_dist,

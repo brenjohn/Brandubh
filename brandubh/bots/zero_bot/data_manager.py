@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jan  3 16:09:08 2026
+
+@author: john
+"""
+
+import copy
+import numpy as np
+
+
+class DataManager():
+    """A class for collecting training data for a zero network and facilitating
+    random sampling of the collected data.
+    """
+    
+    def __init__(self, max_buffer_size, epoch_size):
+        self.Xs = None                      # Collected X values.
+        self.Ys = None                      # Collected Y values.
+        self.Rs = None                      # Collected R values.
+        self.appended = []                  # Num samples added at each step.
+        self.max_buffer_size = max_buffer_size  # Max num of samples to store.
+        self.epoch_size = epoch_size      # Number of samples to return.
+        
+    def append_data(self, training_data):
+        """
+        Append the given data to the collection and remove the oldest samples
+        if the limit has been reached.
+        """
+        X, Y, R = self.expand_data(*training_data)
+        if type(self.Xs) is np.ndarray:
+            self.Xs = np.concatenate((self.Xs, X))
+            self.Ys = np.concatenate((self.Ys, Y))
+            self.Rs = np.concatenate((self.Rs, R))
+        else:
+            self.Xs = X
+            self.Ys = Y
+            self.Rs = R
+        
+        self.appended.append(len(X))
+            
+        if self.Xs.shape[0] > self.max_buffer_size:
+            self.Xs = self.Xs[-self.max_buffer_size:, :, :, :]
+            self.Ys = self.Ys[-self.max_buffer_size:, :, :, :]
+            self.Rs = self.Rs[-self.max_buffer_size:]
+            
+    def sample_training_data(self):
+        """
+        Return a ramdon sample of the collected training data.
+        """
+        samples = np.random.choice(len(self.Xs), self.epoch_size)
+        return (
+            self.Xs[samples, :, :, :], 
+            self.Ys[samples, :, :, :], 
+            self.Rs[samples]
+        )
+    
+    def expand_data(self, X, Y, rewards):
+        """
+        A method to convert game data in an experience list to training data
+        for training the ZeroBot neural network. The training data is also
+        expanded 8 fold using symetries of the game. 
+        """
+        # Expand the training data 8 fold.
+        X, Y = self._expand_data(X, Y)
+        rewards = np.concatenate(8 * rewards)
+        return X, Y, rewards
+        
+    def _expand_data(self, X, Y):
+        X_temp = copy.copy(X)
+        Y_temp = copy.copy(Y)
+        
+        X_temp = np.transpose(X_temp, (0,2,1,3))
+        Y_temp = self.transpose_policy(Y_temp)
+        
+        X = np.concatenate((X, copy.copy(X_temp)), axis=0)
+        Y = np.concatenate((Y, copy.copy(Y_temp)), axis=0)
+        
+        for i in range(3):
+            X_temp = np.flip(X_temp, axis=1)
+            Y_temp = self.flip_policy(Y_temp)
+            
+            X = np.concatenate((X, copy.copy(X_temp)), axis=0)
+            Y = np.concatenate((Y, copy.copy(Y_temp)), axis=0)
+            
+            X_temp = np.transpose(X_temp, (0,2,1,3))
+            Y_temp = self.transpose_policy(Y_temp)
+            
+            X = np.concatenate((X, copy.copy(X_temp)), axis=0)
+            Y = np.concatenate((Y, copy.copy(Y_temp)), axis=0)
+            
+        return X, Y
+    
+    def transpose_policy(self, Y):
+        Y = np.transpose(Y, (0, 2, 1, 3))
+        Y = np.concatenate([Y[:, :, :, 12:], Y[:, :, :, 0:12]], axis=3)
+        return Y
+    
+    def flip_policy(self, Y):
+        Y = np.flip(Y, axis=1)
+        Y[:,:,:,12:] = Y[:,:,:,24:11:-1]
+        return Y

@@ -14,6 +14,7 @@ import os
 from ...game import Act
 from .zero_network import ZeroNet
 from .search_tree import TreeNode
+from .tree_explorer import TreeExplorer
 
 
 class ZeroBot:
@@ -34,9 +35,9 @@ class ZeroBot:
         batch_size :
             The number of tree nodes to evaluate at any one time.
         
-        c :
+        c_puct :
             A parameter to balance exploration and exploitation. The bot will 
-            explore more for larger c.
+            explore more for larger c_puct.
                      
         alpha :
             The dirichlet noise parameter. The noise is used to increase the 
@@ -55,16 +56,16 @@ class ZeroBot:
     def __init__(
             self, 
             evals_per_turn = 7000, 
-            batch_size = 70,
-            c = 1.4,
-            alpha = 0.15,
+            batch_size     = 70,
+            c_puct         = 1.4,
+            alpha          = 0.15,
             sampling_turns = 6,
-            network = None
+            network        = None
         ):
         self.evals_per_turn = evals_per_turn
-        self.batch_size = batch_size
-        self.c = c
-        self.alpha = alpha
+        self.batch_size     = batch_size
+        self.c_puct         = c_puct
+        self.alpha          = alpha
         self.sampling_turns = sampling_turns
         
         if network:
@@ -72,10 +73,10 @@ class ZeroBot:
         else:
             self.network = ZeroNet()
                 
-        self.compile_network((1.0, 0.1))
-        
-        self.climbers = [TreeClimber(c) for i in range(batch_size)]
+        TreeNode.c_puct = c_puct
+        self.tree_explorers = [TreeExplorer() for i in range(batch_size)]
         self.root = None
+        self.compile_network((1.0, 0.1))
     
     
     def select_move(
@@ -294,7 +295,7 @@ class ZeroBot:
         network_load_command = self.network.save_network(prefix)
         attributes = {
             "evals_per_turn" : self.evals_per_turn,
-            "c"              : self.c,
+            "c_puct"         : self.c_puct,
             "batch_size"     : self.batch_size,
             "alpha"          : self.alpha,
             "sampling_turns" : self.sampling_turns,
@@ -313,9 +314,9 @@ class ZeroBot:
                              allow_pickle='TRUE').item()
         
         self.evals_per_turn = attributes["evals_per_turn"]
-        self.c = attributes["c"]
+        self.c_puct = attributes["c_puct"]
         self.batch_size = attributes["batch_size"]
-        self.climbers = [TreeClimber(self.c) for i in range(self.batch_size)]
+        self.tree_explorers = [TreeExplorer() for i in range(self.batch_size)]
         self.alpha = attributes["alpha"]
         
         network_load_command = attributes["network_load_command"]
@@ -327,11 +328,8 @@ class ZeroBot:
         self.network.compile_network(*loss_weights)
     
     
-    def get_DataManager(self, max_bank_size = 0):
+    def get_encoder(self):
+        """Returns the encoder object used to encode board states as tensors 
+        for the neural network and creating training data from self play games.
         """
-        Return a manager object to manage generated training data for the
-        bot's neural network.
-        """
-        if max_bank_size:
-            return self.network.get_DataManager(max_bank_size)
-        return self.network.get_DataManager()
+        return self.network.encoder

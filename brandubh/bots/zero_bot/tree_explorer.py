@@ -6,8 +6,6 @@ Created on Fri Jan  2 19:36:55 2026
 @author: john
 """
 
-import numpy as np
-
 from ...game import Act
 from .search_tree import TreeNode
 
@@ -36,8 +34,7 @@ class TreeExplorer:
         branches along the way with the appropriate values. Changes to the 
         virtual loss are undone alos during this process.
     """
-    def __init__(self, c):
-        self.c = c             # Constant in the PUCT formula.
+    def __init__(self):
         self.node      = None  # The current node the explorer is on.
         self.value     = None  # The value to be used update the parent branch.
         self.next_move = None  # The next move selected by the PUCT score.
@@ -86,13 +83,13 @@ class TreeExplorer:
         corresponding leaf game state.
         """
         node = self.node
-        next_move = self.select_branch()
+        next_move = node.next_move()
         
         while node.has_child(next_move):
             node.increment_virtual_loss(next_move)
             node = node.get_child(next_move)
             self.node = node
-            next_move = self.select_branch()
+            next_move = node.next_move()
             
         node.lock_branch(next_move)
         self.next_move = next_move
@@ -116,36 +113,3 @@ class TreeExplorer:
             
         node.record_visit(move, value)
         self.node = node
-    
-    
-    def select_branch(self):
-        """
-        This method selects a move/branch stemming from the given node by 
-        picking the move that maximises the following PUCT score:
-            
-            Q + c * p * sqrt(N) / (1+n),
-            
-        where Q = the estimated expected reward for the move,
-              c = a constant balancing exploration-exploitation,
-              p = prior probability for the move,
-              N = The total number of visits to the given node
-              n = the number of those visits that went to the branch 
-                  associated with the move
-                  
-        Christopher D. Rosin - Multi-armed Bandits with Episode Context
-        """
-        self.c_sqrt_total_n = np.sqrt(self.node.total_visit_count) * self.c
-        
-        moves = self.node.moves()
-        if moves:
-            return max(moves, key=self.branch_score)
-        else:
-            # If moves is empty then no legal moves can be made from the game
-            # state corresponding to the given node.
-            return None
-    
-    
-    def branch_score(self, move):
-        q, p, n = self.node.branch_score_stats(move)
-        return q + p * self.c_sqrt_total_n/(1+n)
-        

@@ -27,9 +27,10 @@ class Evaluator:
     evaluations.
     """
     
-    def __init__(self, output_dir, opponents):
-        self.output_dir = output_dir
-        self.opponents = opponents
+    def __init__(self, output_dir, evaluation_rate, opponents):
+        self.output_dir      = output_dir
+        self.evaluation_rate = evaluation_rate
+        self.opponents       = opponents
         
         self.setup_bots()
         
@@ -65,6 +66,10 @@ class Evaluator:
             
             with open(self.output_files[name], 'w') as file:
                 json.dump(params, file, indent=4)
+    
+    
+    def should_evaluate(self, cycle):
+        return cycle % self.evaluation_rate == 0
             
 
 

@@ -13,6 +13,86 @@ from ...game import GameState
 from ..random_bot import RandomBot
 
 
+class Trainer:
+    
+    def __init__(
+            self,
+            output_dir,
+            zero_bot,
+            data_manager,
+            evaluator,
+            num_cycles,
+            episodes_per_cycle,
+            move_limit,
+            batch_size,
+            **kwargs
+        ):
+        self.output_dir         = output_dir
+        self.bot                = zero_bot
+        self.data_manager       = data_manager
+        self.evaluator          = evaluator
+        self.num_cycles         = num_cycles
+        self.episodes_per_cycle = episodes_per_cycle
+        self.move_limit         = move_limit
+        self.batch_size         = batch_size
+        self.eps = 0.07
+    
+    
+    def train(self):
+        bot = self.bot
+        encoder = bot.get_encoder()
+        output_dir = self.output_dir
+        data_manager = self.data_manager
+        evaluator = self.evaluator
+        
+        cycle = -1
+        while True:
+            cycle += 1
+            
+            print('\nGainning experience, cycle {0}'.format(cycle))
+            exp = self.gain_experience()
+            save_experience(output_dir, cycle, exp)
+            
+            print('Preparing training data')
+            # Add the generated experience to the bank of training data and load 
+            # all training data
+            training_data = encoder.create_training_data(exp)
+            data_manager.append_data(training_data)
+            
+            print('\nTraining network, cycle {0}'.format(cycle))
+            training_data = data_manager.sample_training_data()
+            bot.network.train(training_data, batch_size=self.batch_size)
+            bot.save_bot("model_data/model_curr_data/")
+            
+            if evaluator.should_evaluate(cycle):
+                print('\nEvaluating bot, cycle {0}'.format(cycle))
+                evaluator.evaluate(bot)
+    
+    
+    def gain_experience(self):
+        """Generates a list of self play games for the bot to train on.
+        """
+        experience = []
+        white_wins = 0; black_wins = 0
+        
+        message = '\rPlaying game {0}. Wins - w:{1} b:{2}'
+        for i in range(self.episodes_per_cycle):
+            print(message.format(i, white_wins, black_wins), end='')
+                
+            # Play a game and collect the generated data.
+            episode = self_play(self.bot, None, self.move_limit, self.eps)
+            experience.append(episode)
+            
+            if episode['winner'] == 1: 
+                white_wins += 1
+            elif episode['winner'] == -1:
+                black_wins += 1
+        
+        message = '\rFinished playing {0} games. Wins - w:{1} b:{2}'
+        print(message.format(self.episodes_per_cycle, white_wins, black_wins))
+        return experience
+
+
 def self_play(bot, starting_board=None, max_moves=0, eps=0):
     """
     A function to get the provided bots to play a single game of brandubh
@@ -51,6 +131,7 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
         tree_root = bot.root
         moves, _ = game.legal_moves()
         stats = tree_root.get_search_stats(moves)
+        
         # TODO: Maybe there should be a TreeNode method for the below
         visit_counts = {}
         for move in tree_root.branches.keys():
@@ -74,46 +155,14 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
         game.take_turn_with_no_checks(action)
         num_moves += 1
                 
-    return boards, moves, move_priors, tree_stats, players, game.winner
-
-
-
-def gain_experience(bot, num_episodes, moves_limit = 0, eps = 0):
-    """
-    A function to repeatedly call the above simulate_game function in order to
-    create a data set of games to train a ZeroBot on.
-    
-    The data from each game is stored in an 'episode' dictionary and all 
-    episodes are collected into a list called 'experience' to be returned.
-    """
-    experience = []
-    white_wins = 0; black_wins = 0
-    
-    message = '\rPlaying game {0}. Wins - w:{1} b:{2}'
-    for i in range(num_episodes):
-        print(message.format(i, white_wins, black_wins), end='')
-            
-        # Play a game and collect the generated data.
-        game_details = self_play(bot, None, moves_limit, eps)
-        boards, moves, visit_counts, tree_stats, players, winner = game_details
-        
-        episode = {}
-        episode['boards']       = boards
-        episode['moves_played'] = moves
-        episode['visit_counts'] = visit_counts
-        episode['tree_stats']   = tree_stats
-        episode['players']      = players
-        episode['winner']       = winner
-        experience.append(episode)
-        
-        if winner == 1: 
-            white_wins += 1
-        elif winner == -1:
-            black_wins += 1
-    
-    message = '\rFinished playing {0} games. Wins - w:{1} b:{2}'
-    print(message.format(num_episodes, white_wins, black_wins))
-    return experience
+    return {
+        'boards'       : boards, 
+        'moves_played' : moves, 
+        'visit_counts' : move_priors, 
+        'tree_stats'   : tree_stats, 
+        'players'      : players, 
+        'winner'       : game.winner
+    }
 
 
 
