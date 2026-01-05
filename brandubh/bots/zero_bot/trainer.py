@@ -14,6 +14,17 @@ from ..random_bot import RandomBot
 
 
 class Trainer:
+    """The Trainer class is responsible for orchestrating the training loop
+    for the brandubh zero bot. 
+    
+    The training iteration takes the following steps:
+        1 - The bot is used to generate several self play games.
+        2 - The self play games are converted to training data and appened to a
+            buffer managed by a data_manager object.
+        3 - A sample of training data is collected from the buffer and used as
+            a dataset to train the bot for an epoch.
+        4 - The bot is evaluated against selected opponent bots.
+    """
     
     def __init__(
             self,
@@ -35,13 +46,19 @@ class Trainer:
         self.episodes_per_cycle = episodes_per_cycle
         self.move_limit         = move_limit
         self.batch_size         = batch_size
+        
         self.eps = 0.07
+        self.curr_model_dir = output_dir / 'model/'
+        self.curr_model_dir.mkdir(exist_ok=True)
+        self.experience_dir = output_dir / 'experience/'
+        self.experience_dir.mkdir(exist_ok=True)
     
     
     def train(self):
+        """Runs the zero bot training loop.
+        """
         bot = self.bot
         encoder = bot.get_encoder()
-        output_dir = self.output_dir
         data_manager = self.data_manager
         evaluator = self.evaluator
         
@@ -49,21 +66,23 @@ class Trainer:
         while True:
             cycle += 1
             
+            # Collect brandubh experience through self play games.
             print('\nGainning experience, cycle {0}'.format(cycle))
-            exp = self.gain_experience()
-            save_experience(output_dir, cycle, exp)
+            experience = self.gain_experience()
+            save_experience(self.experience_dir, cycle, experience)
             
+            # Convert collected experience into training data.
             print('Preparing training data')
-            # Add the generated experience to the bank of training data and load 
-            # all training data
-            training_data = encoder.create_training_data(exp)
+            training_data = encoder.create_training_data(experience)
             data_manager.append_data(training_data)
             
+            # Sample some of the collected training data and train on it.
             print('\nTraining network, cycle {0}'.format(cycle))
             training_data = data_manager.sample_training_data()
             bot.network.train(training_data, batch_size=self.batch_size)
-            bot.save_bot("model_data/model_curr_data/")
+            bot.save_bot(self.curr_model_dir)
             
+            # Evaluate the current bot.
             if evaluator.should_evaluate(cycle):
                 print('\nEvaluating bot, cycle {0}'.format(cycle))
                 evaluator.evaluate(bot)
@@ -167,6 +186,8 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
 
 
 def save_experience(output_dir, cycle, experience):
+    """Save the given self play experience in json format.
+    """
     output_dir = output_dir / f'cycle_{cycle}_experience/'
     output_dir.mkdir(exist_ok=True)
     

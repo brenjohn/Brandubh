@@ -6,7 +6,6 @@ Created on Sat Jan  3 16:04:57 2026
 @author: john
 """
 
-import copy
 import numpy as np
 
 

@@ -27,7 +27,8 @@ def setup_output_dir(parameter_file, params):
 
 def setup_bot(params):
     bot_params = params['ZeroBot']
-    net = ZeroNet()
+    net_params = bot_params.pop('Network', {})
+    net = ZeroNet(net_params)
     return ZeroBot(**bot_params, network=net)
 
 

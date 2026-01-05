@@ -28,6 +28,8 @@ from brandubh.bots.zero_bot import setup_output_dir, setup_bot, setup_trainer
 
 
 def main(parameter_file):
+    """Sets up and starts a training run for a zero bot.
+    """
     # Read parameter file.
     with open(parameter_file, 'r') as file:
         params = toml.load(file)

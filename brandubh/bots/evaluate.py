@@ -28,10 +28,11 @@ class Evaluator:
     """
     
     def __init__(self, output_dir, evaluation_rate, opponents):
-        self.output_dir      = output_dir
+        self.output_dir      = output_dir / 'evaluation/'
         self.evaluation_rate = evaluation_rate
         self.opponents       = opponents
         
+        self.output_dir.mkdir(exist_ok=True)
         self.setup_bots()
         
         

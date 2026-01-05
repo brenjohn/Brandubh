@@ -8,13 +8,15 @@ Created on Sun Jun 14 13:49:08 2020
 This file contains classes used to create a bot that can play brandubh using
 the AlphaGo-Zero approach.
 """
+
+import json
 import numpy as np
-import os
+from pathlib import Path
 
 from ...game import Act
-from .zero_network import ZeroNet
 from .search_tree import TreeNode
 from .tree_explorer import TreeExplorer
+from .zero_network import ZeroNet
 
 
 class ZeroBot:
@@ -266,7 +268,7 @@ class ZeroBot:
         
         
     def turn_on_eval_mode(self, look_ahead = None, **kwargs):
-        """
+        """Turns of dirichlet noise and adjusts the look ahead for evaluation.
         """
         self.old_alpha = self.alpha
         self.old_evals_per_turn = self.evals_per_turn
@@ -277,51 +279,37 @@ class ZeroBot:
     
     
     def turn_off_eval_mode(self):
-        """
+        """Returns dirichlet noise and look ahead to what it was before eval
+        mode was turned on.
         """
         self.alpha = self.old_alpha
         self.evals_per_turn = self.old_evals_per_turn
     
     
-    def save_bot(self, prefix="model_data/"):
+    def save_bot(self, model_dir=Path("model/")):
+        """Saves the bot to the given directory.
         """
-        Method to save the attributes of the current bot and the weights of
-        its neural network under the directory given by the parameter 
-        'prefix'
-        """
-        if not os.path.exists(prefix):
-            os.makedirs(prefix)
-            
-        network_load_command = self.network.save_network(prefix)
+        model_dir.mkdir(exist_ok=True)
+        self.network.save_network(model_dir)
         attributes = {
             "evals_per_turn" : self.evals_per_turn,
             "c_puct"         : self.c_puct,
             "batch_size"     : self.batch_size,
             "alpha"          : self.alpha,
-            "sampling_turns" : self.sampling_turns,
-            "network_load_command": network_load_command
+            "sampling_turns" : self.sampling_turns
         }
-        
-        np.save(prefix + "model_attributes.npy", attributes)
+        with open(model_dir / "zero_bot_attributes.json", 'w') as file:
+            json.dump(attributes, file, indent=4)
         
     
-    def load_bot(self, prefix="model_data/"):
+    @classmethod
+    def load_bot(cls, model_dir=Path("model/")):
+        """Loads a bot from the given directory.
         """
-        Method to load the attributes and neural network saved under the given
-        directory.
-        """
-        attributes = np.load(prefix + "model_attributes.npy",
-                             allow_pickle='TRUE').item()
-        
-        self.evals_per_turn = attributes["evals_per_turn"]
-        self.c_puct = attributes["c_puct"]
-        self.batch_size = attributes["batch_size"]
-        self.tree_explorers = [TreeExplorer() for i in range(self.batch_size)]
-        self.alpha = attributes["alpha"]
-        
-        network_load_command = attributes["network_load_command"]
-        exec(network_load_command)
-        self.network.load_network(prefix)
+        with open(model_dir / "zero_bot_attributes.json", 'r') as file:
+            attributes = json.load(file)
+        attributes['network'] = ZeroNet.load(model_dir)
+        return ZeroBot(**attributes)
     
         
     def compile_network(self, loss_weights):
