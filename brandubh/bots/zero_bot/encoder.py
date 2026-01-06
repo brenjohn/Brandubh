@@ -4,20 +4,19 @@
 Created on Sat Jan  3 16:04:57 2026
 
 @author: john
+
+This submodule defines a class used to encode game states as input tensors
+that can be passed to a ZeroBot neural network. It can also decode the output 
+of the network to a dictionary of move-value pairs.
 """
 
 import numpy as np
 
 
 class SixPlaneEncoder():
-    """
-    This class is used to encode a brandubh game state as a tensor which can
-    be fed into the neural network created by the ZeroNet class. It also has
-    methods for decoding the output tensor from the policy head of the network
-    into a dictionary of move-prior pairs, encoding a prior distribution as
-    a tensor with the same shape as the policy head output (used for creating
-    training data), and for expanding a training data set using symmetries of
-    the game board.
+    """This class is used to encode a brandubh game state as a tensor with six
+    channels (See encode method) and is intended to be used with the ZeroNet
+    class.
     """
         
     def encode(self, game_state):
@@ -45,8 +44,8 @@ class SixPlaneEncoder():
         as black and is all 0's otherwise.
         """
         board_tensor = np.zeros((7,7,6))
-        player = game_state.player
-        game_set = game_state.game_set
+        player       = game_state.player
+        game_set     = game_state.game_set
         
         if player == 1:
             board_tensor[:, :, 4] = 1
@@ -72,8 +71,11 @@ class SixPlaneEncoder():
             
         return board_tensor
     
+    
     def decode_policy(self, model_output, legal_moves):
-        """
+        """Returns a dict of normalised priors for the given legal moves. The
+        priors are taken from the given output from a policy head.
+        
         The policy head of the ZeroNet outputs a tensor with shape (7,7,24)
         containing a probaility distribution over possible moves to make.
         
@@ -115,7 +117,12 @@ class SixPlaneEncoder():
             
         return move_priors
     
+    
     def encode_prior(self, move_probs):
+        """Encodes the given distribution over moves as a tensor similar to an
+        output tensor of a policy head. Can be used to create target outputs
+        for training data.
+        """
         target_tensor = np.zeros((7,7,24))
         
         N = 0  # Normalising constant
@@ -132,16 +139,19 @@ class SixPlaneEncoder():
         
         return target_tensor if N == 0 else target_tensor/N
     
-    def encode_priors(self, priors):            
+    
+    def encode_priors(self, priors):
+        """Encodes the given prior distributions as an output tensor of a
+        policy head.
+        """          
         encoded_priors = [self.encode_prior(prior) for prior in priors]
         num_moves = len(encoded_priors)
         return np.reshape(encoded_priors, (num_moves, 7, 7, 24))
     
+    
     def create_training_data(self, experience):
-        """
-        A method to convert game data in an experience list to training data
-        for training the ZeroBot neural network. The training data is also
-        expanded 8 fold using symetries of the game. 
+        """A method to convert game data in an experience list to training data
+        for training a ZeroBot neural network.
         """
         # The network input and labels forming the training set will be stored 
         # in the following lists.

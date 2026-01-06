@@ -5,8 +5,8 @@ Created on Sun Jun 14 13:49:08 2020
 
 @author: john
 
-This file contains classes used to create a bot that can play brandubh using
-the AlphaGo-Zero approach.
+This module defines the ZeroBot class, an agent for playing brandubh using the
+AlphaGo-Zero approach.
 """
 
 import json
@@ -70,7 +70,7 @@ class ZeroBot:
         self.alpha          = alpha
         self.sampling_turns = sampling_turns
         
-        if network:
+        if network is not None:
             self.network = network
         else:
             self.network = ZeroNet()
@@ -91,19 +91,18 @@ class ZeroBot:
         
         The algorithm uses a combination of a neural network and a Monte Carlo
         tree search to search the decision tree stemming from the given board
-        position. It returns the move associated with the most visited branch 
-        stemming from the root.
+        position. It returns a move selected using the distribution of visits 
+        over branches stemming from the root node (current game state). (See
+        _select_move)
         
         This method creates a tree structure representing the search history
         of the algorithm and is used to save evaluations of board positions
-        and statistics regarding nodes visited.
+        and statistics regarding nodes visited. (See the TreeNode class)
         
-        If return_visit_counts is true, the distribution of visits over the 
-        branches of the root in the search tree will be returned along with
-        the selected move. This distribution can be used to train the neural
-        network.
+        If reuse_search_tree is true, the created tree structure presists
+        between turns of the game and will be reused to avoid re-evaluating
+        possible future board positions.
         """
-        
         # If a search tree is already saved, reuse the subtree relevant to
         # the given game state. Otherwise, start with a tree consisting of a 
         # root node only. The root node is associated with the given board 
@@ -133,13 +132,11 @@ class ZeroBot:
     
     
     def _select_move(self, num_turns):
-        """
-        Creates a list of possible moves and selects a one with one of the 
-        following methods:
+        """Selects a possible move using one of the following methods:
         
-        1) If the number of turns in the game is less than a certain 
-        threshold, the move is randomly sampled from the prob dist defined by 
-        the visit counts.
+        1) If the number of turns in the game is less than a certain threshold
+        (sampling_turns), the move is randomly sampled from the prob dist 
+        defined by the distribution of visit counts over next moves.
         
         2) Otherwise, the move with the highest visit count is selected.
         """
@@ -163,8 +160,7 @@ class ZeroBot:
         
     
     def update_root_to_current_game_state(self, game_state):
-        """
-        Attempts to reuse the existing search tree by finding the current 
+        """Attempts to reuse the existing search tree by finding the current 
         game_state within the tree's descendants.
         """
         # If a search tree is saved.
@@ -206,17 +202,21 @@ class ZeroBot:
     
     
     def update_tree(self):
-        """
-        Runs the hybrid Monte Carlo - neural network tree search to populate
+        """Runs the hybrid Monte Carlo - neural network tree search to populate
         the search tree with board evaluations.
         """
+        # Prepare tree explorers and a buffer to hold game states to process
+        # and add to the search tree.
         states_buffer = [None] * len(self.tree_explorers)
         for explorer in self.tree_explorers:
             explorer.set_node(self.root)
         
+        # Continue until `evals_per_turn` nodes have been added to the tree.
         evals_made = 0
         while evals_made != self.evals_per_turn:
             
+            # Get all tree explorers to climb down the tree to a leaf node and
+            # select a possible next state.
             explorers_ready = 0
             while (
                     explorers_ready < self.batch_size and 
@@ -235,7 +235,8 @@ class ZeroBot:
                     explorer.climb_up()
                     
                 evals_made += 1
-                    
+            
+            # Evaluate the selected states and add them to the tree.
             explorers = self.tree_explorers[0:explorers_ready]
             states_to_be_added = states_buffer[0:explorers_ready]
             if explorers_ready > 0:
@@ -248,22 +249,13 @@ class ZeroBot:
 
                 
     def create_root_node(self, game_state):
+        """Creates a root tree node for the given game state.
         """
-        This method creates a tree node for the given board position and adds
-        it to the tree structure. It will be linked to the given parent node
-        and the given move is stored as the last move taken to produce the
-        given game state. This is useful for trversing and updating the tree 
-        structure when other nodes are added to it.
-        """
-        # Pass the game state to the neural network to both evaluate the 
+        # First pass the game state to the neural network to both evaluate the 
         # how good the board position is and get the prior probability 
-        # distribution over possible next moves (ie the predicted distribution 
-        # of visit counts).
+        # distribution over possible next moves. Then create the node.
         prediction = self.network.predict([game_state])
         move_priors, value = prediction[0]
-        
-        # Create the node for the given game state, with the predicted value
-        # and priors, and attach it to the tree.
         return TreeNode(game_state, value, move_priors, None, None)
         
         

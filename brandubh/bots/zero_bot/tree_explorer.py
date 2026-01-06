@@ -4,6 +4,9 @@
 Created on Fri Jan  2 19:36:55 2026
 
 @author: john
+
+The sumodule defines the TreeExplorer class for traversing and expanding a
+search tree according to the PUCT rule.
 """
 
 from ...game import Act
@@ -18,8 +21,9 @@ class TreeExplorer:
     A virtual loss, stored in the branch objects, is used to modify the PUCT
     score of branches traversed by a tree_explorer to discourage other 
     TreeExplorer objects from exploring the same branch. This 
-    facilitates concurrent exploration of the search tree and batching of 
-    game states to be processed by the neural network network.
+    facilitates concurrent exploration of the search tree by several tree 
+    explorer objects and batching of game states to be processed by the neural 
+    network network.
     
     Expanding a leaf node of a search tree happens in the following steps:
         
@@ -27,12 +31,16 @@ class TreeExplorer:
         method to traverse the tree to a leaf node. The virtual loss of 
         traversed branches is increased during this process.
         
-        2 - The leaf node is expanded with the expand_branch method
+        2 - A possible next mode from the leaf node is selected using the PUCT
+        rule and returned to the ZeroBot which computes priors and an expected
+        reward (value) for the resulting game state. These are used by the 
+        tree explorer's expand branch method to create a new leaf node and add
+        it to the tree.
         
-        3 - The tree_ecplorer then traverses back to the root node using the
-        climb_up method which also updates search statistics stored in the 
-        branches along the way with the appropriate values. Changes to the 
-        virtual loss are undone alos during this process.
+        3 - The tree_explorer then traverses back to the root node using the
+        climb_up method which also updates search statistics, stored in the 
+        branches along the way, with the appropriate values determined from
+        in step 2. Changes to the virtual loss are undone during this process.
     """
     def __init__(self):
         self.node      = None  # The current node the explorer is on.
@@ -41,6 +49,8 @@ class TreeExplorer:
     
     
     def set_node(self, node):
+        """Sets the current tree node.
+        """
         self.node = node
     
     
@@ -60,16 +70,17 @@ class TreeExplorer:
     
     
     def expand_branch(self, state, priors, value):
-        """Creates a new node for the given state and adds it to the tree.
+        """Creates a new node for the given state, with the predicted priors 
+        and value, and adds it to the tree.
         """
-        # Create the node for the given game state, with the predicted value
-        # and priors, and attach it to the tree.
         new_node = TreeNode(state, value, priors, self.node, self.next_move)
         self.node.add_child(self.next_move, new_node)
         self.value = -1 * value
     
     
     def evaluate_terminal_leaf(self):
+        """Used to handle game states that are over and cannot be expanded.
+        """
         # If the current game state is over, then the last
         # player must have won the game. Thus the value/reward for the
         # other player is 1. The current node is not updated with
@@ -79,8 +90,8 @@ class TreeExplorer:
     
     
     def climb_down(self):
-        """climb up the tree to a leaf node and select a move to make from the 
-        corresponding leaf game state.
+        """Climb down the tree to a leaf node and select a move to make from 
+        the corresponding game state.
         """
         node = self.node
         next_move = node.next_move()
@@ -96,8 +107,8 @@ class TreeExplorer:
     
     
     def climb_up(self):
-        """Climb down the tree and update the nodes traversed to get to the 
-        leaf node with the new value for the new move.
+        """Climb back up to the root of the tree and update the nodes traversed 
+        to along the way with the new value for the new move.
         """
         node = self.node
         move = self.next_move

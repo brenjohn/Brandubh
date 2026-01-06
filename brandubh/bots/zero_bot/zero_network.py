@@ -5,23 +5,13 @@ Created on Sat Dec 19 23:16:53 2020
 
 @author: john
 
-This file defines two classes which define a neural network and implements the
-interface a ZeroBot needs to interact with the neural network in order to 
-predict the value of board positions, predict valuable moves that can be made
-from a board position and to prepare training data to train and improve the
-network.
-
-The ZeroNet class has a keras neural network for predicting the value of a
-board-position/game-state and the distribution of visits a ZeroBot will make
-to branches of the decision tree stemming from the board-position.
-
-The SixPlaneEncoder class is used to convert a game-state to an input tensor
-for the neural network and to convert the output of the network to a 
-dictionary of move-value pairs. It also has methods for expanding training 
-data for the network.
+This submodule defines classes and functions for building and managing neural 
+network models for the ZeroBot class. The neural networks use an architecture
+based on the one used by AlphaGo zero.
 """
 
 # Disable tensorflow logging messages:
+# TODO: Can I remove this if it's included in the main entry point scripts.
 import logging
 import os
 logging.getLogger('tensorflow').disabled = True
@@ -48,32 +38,7 @@ from keras.optimizers import Adam
 
 
 class ZeroNet():
-    """A class for managing a zerobot nerual network.
-    
-    The network architecture is as follows:
-        The input layer consists of 6 7x7 arrays of neurons (see encoder class)
-        
-        The input is then passed to a convolutional layer with 64 filters and
-        a 3x3 kernal
-        
-        This is followed by 7 residual layers which consist of two consecutive
-        convolutional layers with 64 filters each, produced by 3x3 kernals,
-        and a skip connection connecting the input of the first convolutional
-        layer to the output of the second. Leaky ReLu functions are used
-        as activations for each convolutional layer.
-        
-        The output of the last residual layer is then passed to two different
-        output heads - a value head and a policy head.
-        
-        The value head consists of a single convolution layer with 32 filters
-        connected to a dense hidden layer of 64 nodes followed by a single
-        output node. Leaky ReLus are used as activations for each layer expect 
-        the output node which uses a tanh as an activation.
-        
-        The policy head has two consecutive convolutional layers with 24 
-        filters. The first uses a leaky ReLu activation and the second uses a
-        softmax activation. The output of the policy head is a 7x7x24 tensor
-        (see Encoder class)
+    """A class for managing a ZeroBot nerual network.
     """
     
     def __init__(self, network_params = {}, model = None):
@@ -84,6 +49,7 @@ class ZeroNet():
         self.encoder = SixPlaneEncoder()
         self.compile_lite_model()
         
+    
     def get_encoder(self):
         return self.encoder
     
@@ -106,14 +72,6 @@ class ZeroNet():
         self.input_ind   = input_det["index"]
         self.value_ind   = value_det["index"]
         self.policy_ind  = policy_det["index"]
-    
-    
-    def compile_network(self, policy_weight, value_weight, lr = 0.0001):
-        self.model.compile(
-            optimizer = Adam(learning_rate=lr,),
-            loss = ['categorical_crossentropy', 'mse'],
-            loss_weights = [policy_weight, value_weight]
-        )
     
     
     def predict(self, game_states):
@@ -145,6 +103,31 @@ class ZeroNet():
         return [
             (priors, value[0]) for priors, value in zip(move_priors, values)
         ]
+
+
+    def train(self, training_data, batch_size, epochs=1):
+        """Train the neural network model on the given data for the given
+        number of epochs and using the given batch size.
+        """
+        X, Y, rewards = training_data
+        loss = self.model.fit(
+            X, [Y, rewards],
+            batch_size=batch_size, 
+            epochs=epochs,
+        )
+        self.compile_lite_model()
+        return loss
+    
+    
+    def compile_network(self, policy_weight, value_weight, lr = 0.0001):
+        """Compile the neural network using the Adam optimizer and the given
+        output weigths and learning rate (lr).
+        """
+        self.model.compile(
+            optimizer = Adam(learning_rate=lr,),
+            loss = ['categorical_crossentropy', 'mse'],
+            loss_weights = [policy_weight, value_weight]
+        )
     
     
     def save_network(self, model_dir=Path("model_data/")):
@@ -163,17 +146,6 @@ class ZeroNet():
         return network
     
     
-    def train(self, training_data, batch_size, epochs=1):
-        X, Y, rewards = training_data
-        loss = self.model.fit(
-            X, [Y, rewards],
-            batch_size=batch_size, 
-            epochs=epochs,
-        )
-        self.compile_lite_model()
-        return loss
-    
-    
 #=============================================================================#
 #                Functions for assembling the neural network
 #=============================================================================#
@@ -190,7 +162,28 @@ def build_model(
         policy_filters   = 35
     ):
     """Builds the network model for a Brandubh network class. The arhcitecture
-    of the model is based on the Alphago zero arhcitecture. 
+    of the model is based on the Alphago zero arhcitecture.
+    
+    Architecture outline:
+        The input layer consists of several 7x7 arrays or planes 
+        (see encoder class). This input is processed by a backbone consisting
+        of a selected number of residual blocks, each with a selected number
+        of filters. (See residual_layer)
+        
+        The output of the backbone is passed to both a policy head and a value
+        head to predict move priors and expected value of the input state
+        respectively.
+        
+        The value head consists of a single convolution layer with a selected 
+        filters followed by two dense layers and a final output layer with 
+        a single neuron. The sizes of the two hidden layers are determined
+        bye the `value_size_a` and `value_size_b` arguments.
+        
+        The policy head has two consecutive convolutional layers. The 
+        `policy_filters` argument determines the number of filters in the first
+        convolutional layer and the second has 24 filters. The output of the 
+        policy head is a 7x7x24 tensor (see Encoder class) and uses a softmax 
+        activation.
     """
     # Prepare arguments for model components.
     kwargs = {
@@ -209,7 +202,6 @@ def build_model(
     backbone_output = backbone(board_input, *backbone_args, kwargs)
     policy_output   = policy_head(backbone_output, *policy_head_args, kwargs)
     value_output    = value_head(backbone_output, *value_head_args, kwargs)
-    
     return Model(inputs=board_input, outputs=[policy_output, value_output])
 
 
@@ -224,7 +216,9 @@ def backbone(x, depth, filters, kwargs):
 
 
 def residual_layer(x, filters, kwargs):
-    """Creates a residual block used in the model's backbone.
+    """Creates a residual block used in the model's backbone. The bloack
+    consists of two convolutional layers using 3x3 kernels, leaky ReLU 
+    activations and a skip connection.
     """
     y = Conv2D(filters, KERNEL_SIZE, **kwargs)(x)
     y = LeakyReLU()(y)

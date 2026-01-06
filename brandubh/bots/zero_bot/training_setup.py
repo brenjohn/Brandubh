@@ -4,6 +4,8 @@
 Created on Sun Jan  4 13:46:50 2026
 
 @author: john
+
+This submodule defines functions for setting up a training run for a ZeroBot.
 """
 
 import shutil
@@ -16,8 +18,10 @@ from .data_manager import DataManager
 from ..evaluate import Evaluator
 
 
-
 def setup_output_dir(parameter_file, params):
+    """Creates the output directory for the training run creates a copy the
+    parameter file used for the run.
+    """
     output_dir = Path(params['output_dir'])
     output_dir.mkdir(exist_ok=True)
     shutil.copyfile(parameter_file, output_dir / 'used_parameters.toml')
@@ -26,6 +30,8 @@ def setup_output_dir(parameter_file, params):
 
 
 def setup_bot(params):
+    """Returns a ZeroBot to train.
+    """
     bot_params = params['ZeroBot']
     net_params = bot_params.pop('Network', {})
     net = ZeroNet(net_params)
@@ -34,16 +40,20 @@ def setup_bot(params):
 
 
 def setup_trainer(output_dir, zero_bot, params):
+    """Returns a trainer object for taining the given ZeroBot.
+    """
+    # Create a data manager object.
     buffer_size = params['Training']['data']['buffer_size']
     epoch_size = params['Training']['data']['epoch_size']
     data_manager = DataManager(buffer_size, epoch_size)
     
+    # Create an evaluator object.
     evaluation_rate = params['Evaluation']['evaluation_rate']
     opponents = params['Evaluation']['opponents']
     evaluator = Evaluator(output_dir, evaluation_rate, opponents)
     
+    # Create and return a trainer object.
     training_params = params['Training']
-    
     return Trainer(
         output_dir, 
         zero_bot, 

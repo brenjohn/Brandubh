@@ -4,14 +4,16 @@
 Created on Fri Jan  2 12:44:34 2026
 
 @author: john
+
+This submodule defines the TreeNode class, representing a node in the ZeroBot
+search tree, and a Branch class for holding tree search statistics.
 """
 
 import numpy as np
 
 
 class Branch:
-    """
-    Branch class for storing statistics gathered by the ZeroBot algorithm.
+    """Branch class for storing statistics gathered by the ZeroBot algorithm.
     
     Tracked statistics are:
         prior        - The prior probability for the branch.
@@ -21,17 +23,18 @@ class Branch:
         virtual loss - A temporary virtual loss value used for concurrent 
                        branch exploration (see TreeExplorer class)
         
-        total value  - The sum of all values of descendant nodes from this 
-                       branch.
+        total value  - Sum of all values of descendant nodes of this branch.
     """
     def __init__(self, prior):
         self.prior        = prior
         self.visit_count  = 0
         self.virtual_loss = 0
-        self.total_value  = 0  # Sum of values from all explored descendants.
+        self.total_value  = 0
     
     
     def expected_value(self):
+        """Returns the estimated value of the node stemming from this branch.
+        """
         expected_value = 0
         if self.visit_count > 0:
             expected_value = (self.total_value + self.virtual_loss)
@@ -40,6 +43,8 @@ class Branch:
     
     
     def search_stats(self):
+        """Returns the expected value, prior and visit count for the branch.
+        """
         return self.expected_value(), self.prior, self.visit_count
 
         
@@ -47,19 +52,24 @@ class Branch:
 class TreeNode:
     """
     This class can represent a node (corresponding to a game state) in the 
-    decision/search tree used in the alpha-zero algorithm.
+    decision/search tree used in the ZeroBot algorithm.
     
     Instances of this class are used to build a tree structure to record the
     search history of the ZeroBot select_move algorithm. It saves an instance
     of the game state it represents, the expected value of that game state as
     predicted by the neural network, a reference to its parent node if it has
-    one and a tuple representing the previous move of the game corresponding 
-    game state which created it.
+    one and a tuple representing the previous move made in the game that 
+    created the current game state.
     
     It also contains two dictionaries, indexed by game moves, which hold 
     references to any child nodes, attached to the current instance in the tree
     structure, and branch objects containing statistics regarding the search 
     history of the select_move method.
+    
+    The PUCT rule is used to select moves which uses a constant c_puct (saved
+    as a class attribute) for balancing exploration and exploitation. The
+    ZeroBot sets this class variable before any instances of TreeNode are 
+    created.
     """
     c_puct = 1  # Should be manually set before any instances are created.
     
@@ -69,8 +79,7 @@ class TreeNode:
         self.parent     = parent
         self.last_move  = last_move  # The move that created the current state. 
         
-        # The creation of a node counts as a visit, so is initialised to 1.
-        self.total_visit_count = 1
+        self.total_visit_count = 1  # The creation of a node counts as a visit.
         self.c_sqrt_total_n = self.c_puct
         self.children = {}
         self.branches = {
@@ -202,7 +211,7 @@ class TreeNode:
     
     def corresponds_to(self, history_link):
         """Returns True if this TreeNode represents a game state that is
-        equivalent to the given historic state
+        equivalent to the given historic state.
         """
         if history_link:
             player, game_set = self.state.player, self.state.game_set

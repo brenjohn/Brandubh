@@ -4,6 +4,9 @@
 Created on Tue Dec 30 16:07:32 2025
 
 @author: john
+
+This submodule define the Evaluator class for measuring the strength of a bot
+against selected opponent bots.
 """
 
 import json

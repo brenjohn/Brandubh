@@ -4,6 +4,9 @@
 Created on Wed Dec 31 14:25:39 2025
 
 @author: john
+
+This module define a Trainer class for running and managing the ZeroBot
+training loop.
 """
 
 import json
@@ -17,7 +20,7 @@ class Trainer:
     """The Trainer class is responsible for orchestrating the training loop
     for the brandubh zero bot. 
     
-    The training iteration takes the following steps:
+    A training iteration takes the following steps:
         1 - The bot is used to generate several self play games.
         2 - The self play games are converted to training data and appened to a
             buffer managed by a data_manager object.
@@ -113,24 +116,29 @@ class Trainer:
 
 
 def self_play(bot, starting_board=None, max_moves=0, eps=0):
-    """
-    A function to get the provided bots to play a single game of brandubh
-    against eachother in order to generate training data for the bots.
+    """Gets the provided bot to play a single game of brandubh
+    against itself and returns a dict containing the game.
     
-    Each turn of the game, after a move is selected, the game-state is encoded
-    as tensor (the same tensor the neural network takes as input to predict
-    the state value and move priors) and appended to a boards list to be
-    returned at the end of the game. These will become X (input) values in the
-    training data.
-    
-    The distribution of visits, over possible next moves from each game state,
-    made by the ZeroBot's select_move algorithm is also recorded. These become
-    the Y (label) values in the training data for the policy head of the neural
-    network.
-    
-    The player making the next move for each game-state and the winner of the
-    game are also recorded and returned. These determine the reward to be used
-    as a Y (label) value for the value head of the neural network.
+    The retunred dict contains the following ordered lists:
+        
+        boards - A list of encoded game states that occured during the game. 
+        These can be used as input (X) values in training data for the ZeroBot.
+        
+        moves_played - A list of all moves played during the game.
+        
+        visit_counts - A list of distributions of ZeroBot tree search visits
+        over legal moves each turn. These can be used as target (Y) values in
+        training data for the policy head of the ZeroBot neural network.
+        
+        tree_stats - A list of dicts containing various tree search statistics
+        for each turn. These con be used to inspect predictions made by the 
+        ZeroBot
+        
+        players - A list of ints indicating the player making a move.
+        
+        winner - An int indicating who won the game. This can be used to create
+        target values (rewards) for in trainging data for the value head of the
+        ZeroBot neural network.
     
     The game will start from the given starting position if one is provided.
     The game will end in a draw if the number of moves exceeds 'max_moves'.
