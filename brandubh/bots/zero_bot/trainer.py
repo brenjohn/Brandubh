@@ -51,6 +51,7 @@ class Trainer:
         self.batch_size         = batch_size
         
         self.eps = 0.07
+        self.loss_history = []
         self.curr_model_dir = output_dir / 'model/'
         self.curr_model_dir.mkdir(exist_ok=True)
         self.experience_dir = output_dir / 'experience/'
@@ -82,13 +83,21 @@ class Trainer:
             # Sample some of the collected training data and train on it.
             print('\nTraining network, cycle {0}'.format(cycle))
             training_data = data_manager.sample_training_data()
-            bot.network.train(training_data, batch_size=self.batch_size)
+            loss = bot.network.train(training_data, batch_size=self.batch_size)
+            self.save_loss(loss, cycle)
             bot.save_bot(self.curr_model_dir)
             
             # Evaluate the current bot.
             if evaluator.should_evaluate(cycle):
                 print('\nEvaluating bot, cycle {0}'.format(cycle))
                 evaluator.evaluate(bot)
+                
+                
+    def save_loss(self, loss, cycle):
+        loss['cycle'] = cycle
+        self.loss_history.append(loss)
+        with open(self.output_dir / 'loss_history.json', 'w') as file:
+            json.dump(self.loss_history, file, indent=2)
     
     
     def gain_experience(self):
@@ -148,6 +157,7 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
     game = GameState.new_game(starting_board)
         
     boards, moves_played, move_priors, tree_stats, players = [], [], [], [], []
+    random_move = []
     num_moves = 0
     
     while game.is_not_over() and num_moves < max_moves:
@@ -167,6 +177,9 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
         
         if np.random.rand() < eps:
             action = rand_bot.select_move(game)
+            random_move.append(True)
+        else:
+            random_move.append(False)
         
         if action.is_play:
             # Encode and record the game-state as well as the visit counts and
@@ -189,7 +202,8 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
         'visit_counts' : move_priors, 
         'tree_stats'   : tree_stats, 
         'players'      : players, 
-        'winner'       : game.winner
+        'winner'       : game.winner,
+        'random_move'  : random_move
     }
 
 

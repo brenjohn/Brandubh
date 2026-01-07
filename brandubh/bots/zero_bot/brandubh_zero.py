@@ -16,7 +16,7 @@ from pathlib import Path
 from ...game import Act
 from .search_tree import TreeNode
 from .tree_explorer import TreeExplorer
-from .zero_network import ZeroNet
+from .network_managers import ZeroNet, DualNet
 
 
 class ZeroBot:
@@ -284,11 +284,12 @@ class ZeroBot:
         model_dir.mkdir(exist_ok=True)
         self.network.save_network(model_dir)
         attributes = {
-            "evals_per_turn" : self.evals_per_turn,
-            "c_puct"         : self.c_puct,
-            "batch_size"     : self.batch_size,
-            "alpha"          : self.alpha,
-            "sampling_turns" : self.sampling_turns
+            "evals_per_turn"  : self.evals_per_turn,
+            "c_puct"          : self.c_puct,
+            "batch_size"      : self.batch_size,
+            "alpha"           : self.alpha,
+            "sampling_turns"  : self.sampling_turns,
+            "network_manager" : self.network.__class__.__name__
         }
         with open(model_dir / "zero_bot_attributes.json", 'w') as file:
             json.dump(attributes, file, indent=4)
@@ -300,7 +301,9 @@ class ZeroBot:
         """
         with open(model_dir / "zero_bot_attributes.json", 'r') as file:
             attributes = json.load(file)
-        attributes['network'] = ZeroNet.load(model_dir)
+        manager_map = {"ZeroNet" : ZeroNet, "DualNet" : DualNet}
+        manager = manager_map[attributes.pop('network_manager')]
+        attributes['network'] = manager.load_network(model_dir)
         return ZeroBot(**attributes)
     
         

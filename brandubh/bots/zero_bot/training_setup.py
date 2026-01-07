@@ -11,7 +11,7 @@ This submodule defines functions for setting up a training run for a ZeroBot.
 import shutil
 from pathlib import Path
 
-from .zero_network import ZeroNet, DualNet
+from .network_managers import ZeroNet, DualNet
 from .brandubh_zero import ZeroBot
 from .trainer import Trainer
 from ..evaluate import Evaluator

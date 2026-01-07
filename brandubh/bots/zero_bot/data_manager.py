@@ -14,7 +14,7 @@ import numpy as np
 
 
 class ZeroDataManager():
-    """A class for collecting training data for a zero network and facilitating
+    """A class for collecting training data for a ZeroNet and facilitating
     random sampling of the collected data.
     """
     
@@ -50,7 +50,7 @@ class ZeroDataManager():
     
     
     def sample_training_data(self):
-        """Return a ramdon sample of the collected training data.
+        """Return a random sample of the collected training data.
         """
         samples = np.random.choice(len(self.Xs), self.epoch_size)
         return (
@@ -112,6 +112,9 @@ class ZeroDataManager():
 
 
 class DualDataManager:
+    """A wrapper class for the ZeroDataManager class to collecting training 
+    data for a DualNet.
+    """
     
     def __init__(self, max_buffer_size, epoch_size):
         self.buffer_size = max_buffer_size  # Max num of samples to store.
@@ -121,11 +124,16 @@ class DualDataManager:
         self.black_data_manager = ZeroDataManager(max_buffer_size, epoch_size)
         
     def append(self, training_data):
+        """Append the given data to the collection and remove the oldest 
+        samples if the limit has been reached.
+        """
         white_training_data, black_training_data = training_data
         self.white_data_manager.append(white_training_data)
         self.black_data_manager.append(black_training_data)
         
     def sample_training_data(self):
+        """Return a random sample of the collected training data.
+        """
         white_samples = self.white_data_manager.sample_training_data()
         black_samples = self.black_data_manager.sample_training_data()
         return white_samples, black_samples

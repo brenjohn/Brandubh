@@ -235,6 +235,9 @@ class ThreePlaneEncoder(BaseEncoder):
     
     
     def create_training_data(self, experience):
+        """Convert the given experience list to training datafor training a 
+        ZeroBot using a DualNet.
+        """
         white_experience, black_experience = self.split_experience(experience)
         white_training_data = super().create_training_data(white_experience)
         black_training_data = super().create_training_data(black_experience)
@@ -242,6 +245,9 @@ class ThreePlaneEncoder(BaseEncoder):
     
     
     def split_experience(self, experience):
+        """Split the given game experience into experience for white and black
+        models of a DualNet.
+        """
         white_experience, black_experience = [], []
         for episode in experience:
             white_data, black_data = self.split_episode(episode)
@@ -251,6 +257,9 @@ class ThreePlaneEncoder(BaseEncoder):
     
     
     def split_episode(self, episode):
+        """Collects and returns the episode (game) data for white and black
+        turns in seperate episode dicts.
+        """
         white_turns = [i for i, p in enumerate(episode['players']) if p ==  1]
         black_turns = [i for i, p in enumerate(episode['players']) if p == -1]
         
