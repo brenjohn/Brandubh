@@ -312,4 +312,4 @@ class ZeroBot:
         """Returns the encoder object used to encode board states as tensors 
         for the neural network and creating training data from self play games.
         """
-        return self.network.encoder
+        return self.network.get_encoder()

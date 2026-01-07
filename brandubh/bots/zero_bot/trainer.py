@@ -77,7 +77,7 @@ class Trainer:
             # Convert collected experience into training data.
             print('Preparing training data')
             training_data = encoder.create_training_data(experience)
-            data_manager.append_data(training_data)
+            data_manager.append(training_data)
             
             # Sample some of the collected training data and train on it.
             print('\nTraining network, cycle {0}'.format(cycle))
@@ -144,9 +144,10 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
     The game will end in a draw if the number of moves exceeds 'max_moves'.
     """
     rand_bot = RandomBot()
+    encoder = bot.get_encoder()
     game = GameState.new_game(starting_board)
         
-    boards, moves, move_priors, tree_stats, players = [], [], [], [], []
+    boards, moves_played, move_priors, tree_stats, players = [], [], [], [], []
     num_moves = 0
     
     while game.is_not_over() and num_moves < max_moves:
@@ -170,9 +171,9 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
         if action.is_play:
             # Encode and record the game-state as well as the visit counts and
             # the player that made the move.
-            board_tensor = bot.network.encoder.encode(game)
+            board_tensor = encoder.encode(game)
             boards.append(board_tensor)
-            moves.append(action.move)
+            moves_played.append(action.move)
             tree_stats.append(stats)
             move_priors.append(visit_counts)
             players.append(game.player)
@@ -184,7 +185,7 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
                 
     return {
         'boards'       : boards, 
-        'moves_played' : moves, 
+        'moves_played' : moves_played, 
         'visit_counts' : move_priors, 
         'tree_stats'   : tree_stats, 
         'players'      : players, 

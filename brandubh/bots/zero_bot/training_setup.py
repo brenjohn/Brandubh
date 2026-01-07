@@ -11,11 +11,16 @@ This submodule defines functions for setting up a training run for a ZeroBot.
 import shutil
 from pathlib import Path
 
-from .zero_network import ZeroNet
+from .zero_network import ZeroNet, DualNet
 from .brandubh_zero import ZeroBot
 from .trainer import Trainer
-from .data_manager import DataManager
 from ..evaluate import Evaluator
+
+
+NETWORKS = {
+    'ZeroNet' : (ZeroNet, 'SixPlaneEncoder'),
+    'DualNet' : (DualNet, 'ThreePlaneEncoder')
+}
 
 
 def setup_output_dir(parameter_file, params):
@@ -34,8 +39,10 @@ def setup_bot(params):
     """
     bot_params = params['ZeroBot']
     net_params = bot_params.pop('Network', {})
-    net = ZeroNet(net_params)
-    return ZeroBot(**bot_params, network=net)
+    Network, encoder = NETWORKS[net_params['type']]
+    net_params['encoder'] = encoder
+    network = Network(net_params)
+    return ZeroBot(**bot_params, network=network)
 
 
 
@@ -45,7 +52,7 @@ def setup_trainer(output_dir, zero_bot, params):
     # Create a data manager object.
     buffer_size = params['Training']['data']['buffer_size']
     epoch_size = params['Training']['data']['epoch_size']
-    data_manager = DataManager(buffer_size, epoch_size)
+    data_manager = zero_bot.network.get_data_manager(buffer_size, epoch_size)
     
     # Create an evaluator object.
     evaluation_rate = params['Evaluation']['evaluation_rate']

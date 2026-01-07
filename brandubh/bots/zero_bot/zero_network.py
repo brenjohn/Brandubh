@@ -10,24 +10,14 @@ network models for the ZeroBot class. The neural networks use an architecture
 based on the one used by AlphaGo zero.
 """
 
-# Disable tensorflow logging messages:
-# TODO: Can I remove this if it's included in the main entry point scripts.
-import logging
-import os
-logging.getLogger('tensorflow').disabled = True
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
 import tensorflow as tf
-tf.get_logger().setLevel('ERROR')
-tf.autograph.set_verbosity(0)
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-# Normal imports:
 import json
 import numpy as np
 from pathlib import Path
 
-from .encoder import SixPlaneEncoder
+from .encoder import SixPlaneEncoder, ThreePlaneEncoder
+from .data_manager import ZeroDataManager, DualDataManager
 
 from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, Flatten
@@ -36,6 +26,10 @@ from keras.models import load_model
 from keras.regularizers import l2
 from keras.optimizers import Adam
 
+ENCODERS = {
+    'SixPlaneEncoder' : SixPlaneEncoder,
+    'ThreePlaneEncoder' : ThreePlaneEncoder
+}
 
 class ZeroNet():
     """A class for managing a ZeroBot nerual network.
@@ -43,15 +37,22 @@ class ZeroNet():
     
     def __init__(self, network_params = {}, model = None):
         self.model_params = network_params
-        model_provided = model is not None
-        self.model = model if model_provided else build_model(**network_params)
+        self.encoder = ENCODERS[network_params['encoder']]()
         
-        self.encoder = SixPlaneEncoder()
+        if model is not None:
+            self.model = model 
+        else:
+            network_params['input_channels'] = self.encoder.num_planes
+            self.model = build_model(**network_params)
+        
         self.compile_lite_model()
         
     
     def get_encoder(self):
         return self.encoder
+    
+    def get_data_manager(self, max_buffer_size, epoch_size):
+        return ZeroDataManager(max_buffer_size, epoch_size)
     
     
     def compile_lite_model(self):
@@ -72,15 +73,29 @@ class ZeroNet():
         self.input_ind   = input_det["index"]
         self.value_ind   = value_det["index"]
         self.policy_ind  = policy_det["index"]
+        
+    
+    def compile_network(self, policy_weight, value_weight, lr = 0.0001):
+        """Compile the neural network using the Adam optimizer and the given
+        output weigths and learning rate (lr).
+        """
+        self.model.compile(
+            optimizer = Adam(learning_rate=lr,),
+            loss = ['categorical_crossentropy', 'mse'],
+            loss_weights = [policy_weight, value_weight]
+        )
     
     
     def predict(self, game_states):
         """Use the neural network to predict the value of the given board 
         positions and their prior distribution over possible next moves.
         """
+        if not game_states:
+            return []
+        
         # Encode the game states as a tensor to be passed to the network.
         encoded_states = [self.encoder.encode(s) for s in game_states]
-        input_tensor = np.array(encoded_states)
+        input_tensor = np.array(encoded_states, ndmin=4)
         input_tensor = input_tensor.astype(np.float32)
         
         # Resize the input tensors if needed.
@@ -119,17 +134,6 @@ class ZeroNet():
         return loss
     
     
-    def compile_network(self, policy_weight, value_weight, lr = 0.0001):
-        """Compile the neural network using the Adam optimizer and the given
-        output weigths and learning rate (lr).
-        """
-        self.model.compile(
-            optimizer = Adam(learning_rate=lr,),
-            loss = ['categorical_crossentropy', 'mse'],
-            loss_weights = [policy_weight, value_weight]
-        )
-    
-    
     def save_network(self, model_dir=Path("model_data/")):
         with open(model_dir / 'network_params.json', 'w') as file:
             json.dump(self.model_params, file, indent=4)
@@ -146,6 +150,90 @@ class ZeroNet():
         return network
     
     
+class DualNet:
+    
+    def __init__(self, network_params = {}, models = None):
+        if models is None:
+            self.white_model = ZeroNet(network_params)
+            self.black_model = ZeroNet(network_params)
+        else:
+            self.white_model, self.black_model = models
+        
+    
+    def get_encoder(self):
+        return self.white_model.encoder
+    
+    def get_data_manager(self, max_buffer_size, epoch_size):
+        return DualDataManager(max_buffer_size, epoch_size)
+    
+    
+    def compile_lite_model(self):
+        """Creates a lite version of the model for rapid inference.
+        """
+        self.white_model.compile_lite_model()
+        self.black_model.compile_lite_model()
+        
+    
+    def predict(self, game_states):
+        """Use the neural network to predict the value of the given board 
+        positions and their prior distribution over possible next moves.
+        """
+        white_states, black_states = self.split_game_states(game_states)
+        white_pred = self.white_model.predict(white_states)
+        black_pred = self.black_model.predict(black_states)
+        return self.merge_predictions(white_pred, black_pred, game_states)
+    
+    
+    def split_game_states(self, game_states):
+        white_states = [s for s in game_states if s.player == 1]
+        black_states = [s for s in game_states if s.player ==-1]
+        return white_states, black_states
+    
+    def merge_predictions(self, white_pred, black_pred, game_states):
+        """Correctly merge the white and black predictions into lists with the
+        same order as the given list of gamestates.
+        """
+        return [
+            white_pred.pop(0) if state.player == 1 else black_pred.pop(0)
+            for state in game_states
+        ]
+
+
+    def train(self, training_data, batch_size, epochs=1):
+        """Train the neural network model on the given data for the given
+        number of epochs and using the given batch size.
+        """
+        white_data, black_data = training_data
+        white_loss = self.white_model.train(white_data, batch_size, epochs)
+        black_loss = self.white_model.train(black_data, batch_size, epochs)
+        self.compile_lite_model()
+        return white_loss, black_loss
+        
+    
+    def compile_network(self, policy_weight, value_weight, lr = 0.0001):
+        """Compile the neural network using the Adam optimizer and the given
+        output weigths and learning rate (lr).
+        """
+        self.white_model.compile_network(policy_weight, value_weight, lr)
+        self.black_model.compile_network(policy_weight, value_weight, lr)
+    
+    
+    def save_network(self, model_dir=Path("model_data/")):
+        white_model_dir = model_dir / 'white_model/'
+        black_model_dir = model_dir / 'black_model/'
+        white_model_dir.mkdir(exist_ok=True)
+        black_model_dir.mkdir(exist_ok=True)
+        self.white_model.save_network(white_model_dir)
+        self.black_model.save_network(black_model_dir)
+    
+    
+    @classmethod
+    def load_network(cls, model_dir=Path("model/")):
+        white_model = ZeroNet.load_network(model_dir / 'white_model/')
+        black_model = ZeroNet.load_network(model_dir / 'black_model/')
+        return DualNet(models = (white_model, black_model))
+    
+    
 #=============================================================================#
 #                Functions for assembling the neural network
 #=============================================================================#
@@ -153,13 +241,15 @@ class ZeroNet():
 KERNEL_SIZE = (3, 3)
 
 def build_model(
-        alpha            = 0.0001, 
+        alpha            = 0.0001,
+        input_channels   = 6,
         backbone_depth   = 7,
         backbone_filters = 35,
         value_filters    = 35,
         value_size_a     = 35, 
         value_size_b     = 21,
-        policy_filters   = 35
+        policy_filters   = 35,
+        **kwargs
     ):
     """Builds the network model for a Brandubh network class. The arhcitecture
     of the model is based on the Alphago zero arhcitecture.
@@ -198,7 +288,8 @@ def build_model(
     value_head_args = (value_filters, value_size_a, value_size_b)
     
     # Assemble the modle.
-    board_input     = Input(shape=(7,7,6), name='board_input')
+    input_shape     = (7, 7, input_channels)
+    board_input     = Input(shape=input_shape, name='board_input')
     backbone_output = backbone(board_input, *backbone_args, kwargs)
     policy_output   = policy_head(backbone_output, *policy_head_args, kwargs)
     value_output    = value_head(backbone_output, *value_head_args, kwargs)

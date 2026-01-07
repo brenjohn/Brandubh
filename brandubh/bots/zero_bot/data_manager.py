@@ -13,7 +13,7 @@ import copy
 import numpy as np
 
 
-class DataManager():
+class ZeroDataManager():
     """A class for collecting training data for a zero network and facilitating
     random sampling of the collected data.
     """
@@ -27,7 +27,7 @@ class DataManager():
         self.epoch_size = epoch_size      # Number of samples to return.
     
     
-    def append_data(self, training_data):
+    def append(self, training_data):
         """Append the given data to the collection and remove the oldest 
         samples if the limit has been reached.
         """
@@ -108,3 +108,24 @@ class DataManager():
         Y = np.flip(Y, axis=1)
         Y[:,:,:,12:] = Y[:,:,:,24:11:-1]
         return Y
+    
+
+
+class DualDataManager:
+    
+    def __init__(self, max_buffer_size, epoch_size):
+        self.buffer_size = max_buffer_size  # Max num of samples to store.
+        self.epoch_size = epoch_size        # Number of samples to return.
+        
+        self.white_data_manager = ZeroDataManager(max_buffer_size, epoch_size)
+        self.black_data_manager = ZeroDataManager(max_buffer_size, epoch_size)
+        
+    def append(self, training_data):
+        white_training_data, black_training_data = training_data
+        self.white_data_manager.append(white_training_data)
+        self.black_data_manager.append(black_training_data)
+        
+    def sample_training_data(self):
+        white_samples = self.white_data_manager.sample_training_data()
+        black_samples = self.black_data_manager.sample_training_data()
+        return white_samples, black_samples

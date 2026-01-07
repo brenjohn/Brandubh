@@ -137,6 +137,7 @@ class SixPlaneEncoder(BaseEncoder):
     channels (See encode method) and is intended to be used with the ZeroNet
     class.
     """
+    num_planes = 6
         
     def encode(self, game_state):
         """
@@ -162,7 +163,7 @@ class SixPlaneEncoder(BaseEncoder):
         The sixth plane is a 7x7 array of 1's if the current player is playing 
         as black and is all 0's otherwise.
         """
-        board_tensor = np.zeros((7,7,6))
+        board_tensor = np.zeros((7,7,self.num_planes))
         player       = game_state.player
         game_set     = game_state.game_set
         
@@ -197,6 +198,7 @@ class ThreePlaneEncoder(BaseEncoder):
     three channels (See encode method) and is intended to be used with the
     DualNet class.
     """
+    num_planes = 3
         
     def encode(self, game_state):
         """
@@ -212,7 +214,7 @@ class ThreePlaneEncoder(BaseEncoder):
         
         The third plane encodes the position of all the black pieces.
         """
-        board_tensor = np.zeros((7,7,3))
+        board_tensor = np.zeros((7,7,self.num_planes))
         game_set = game_state.game_set
             
         # white soldier pieces
@@ -242,14 +244,14 @@ class ThreePlaneEncoder(BaseEncoder):
     def split_experience(self, experience):
         white_experience, black_experience = [], []
         for episode in experience:
-            white_turns, black_turns = self.split_episode(episode)
-            white_experience.append(white_turns)
-            black_experience.append(black_turns)
+            white_data, black_data = self.split_episode(episode)
+            white_experience.append(white_data)
+            black_experience.append(black_data)
         return white_experience, black_experience
     
     
     def split_episode(self, episode):
-        white_turns = [i for i, p in enumerate(episode['players']) if p == 1]
+        white_turns = [i for i, p in enumerate(episode['players']) if p ==  1]
         black_turns = [i for i, p in enumerate(episode['players']) if p == -1]
         
         white_data, black_data = {}, {}
