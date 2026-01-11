@@ -14,12 +14,18 @@ from pathlib import Path
 from .network_managers import ZeroNet, DualNet
 from .brandubh_zero import ZeroBot
 from .trainer import Trainer
+from .random_move_policies import ConstantEpsilon, BalancedEpsilon
 from ..evaluate import Evaluator
 
 
 NETWORKS = {
     'ZeroNet' : (ZeroNet, 'SixPlaneEncoder'),
     'DualNet' : (DualNet, 'ThreePlaneEncoder')
+}
+
+RANDOM_MOVE_POLICIES = {
+    'Constant' : ConstantEpsilon,
+    'Balanced' : BalancedEpsilon
 }
 
 
@@ -59,12 +65,18 @@ def setup_trainer(output_dir, zero_bot, params):
     opponents = params['Evaluation']['opponents']
     evaluator = Evaluator(output_dir, evaluation_rate, opponents)
     
+    # Setup the random move policy to use during training.
+    random_policy_params = params['Training']['random_move_policy']
+    random_policy = random_policy_params.pop('type')
+    random_policy = RANDOM_MOVE_POLICIES[random_policy](**random_policy_params)
+    
     # Create and return a trainer object.
     training_params = params['Training']
     return Trainer(
         output_dir, 
         zero_bot, 
         data_manager, 
-        evaluator, 
+        evaluator,
+        random_policy,
         **training_params
     )

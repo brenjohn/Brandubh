@@ -10,7 +10,6 @@ training loop.
 """
 
 import json
-import numpy as np
 
 from ...game import GameState
 from ..random_bot import RandomBot
@@ -35,6 +34,7 @@ class Trainer:
             zero_bot,
             data_manager,
             evaluator,
+            random_policy,
             num_cycles,
             episodes_per_cycle,
             move_limit,
@@ -45,13 +45,22 @@ class Trainer:
         self.bot                = zero_bot
         self.data_manager       = data_manager
         self.evaluator          = evaluator
+        self.random_policy      = random_policy
         self.num_cycles         = num_cycles
         self.episodes_per_cycle = episodes_per_cycle
         self.move_limit         = move_limit
         self.batch_size         = batch_size
         
-        self.eps = 0.07
-        self.loss_history = []
+        self.balance_history = { 
+            'white_win_moves' : [], 
+            'black_win_moves' : [], 
+            'draw_moves'  : []
+        }
+        self.loss_history = {}
+        self.log_data = {
+            'loss_history'    : self.loss_history,
+            'balance_history' : self.balance_history
+        }
         self.curr_model_dir = output_dir / 'model/'
         self.curr_model_dir.mkdir(exist_ok=True)
         self.experience_dir = output_dir / 'experience/'
@@ -72,7 +81,7 @@ class Trainer:
             
             # Collect brandubh experience through self play games.
             print('\nGainning experience, cycle {0}'.format(cycle))
-            experience = self.gain_experience()
+            experience, balance = self.gain_experience()
             save_experience(self.experience_dir, cycle, experience)
             
             # Convert collected experience into training data.
@@ -84,20 +93,27 @@ class Trainer:
             print('\nTraining network, cycle {0}'.format(cycle))
             training_data = data_manager.sample_training_data()
             loss = bot.network.train(training_data, batch_size=self.batch_size)
-            self.save_loss(loss, cycle)
+            
+            # Save current bot and log the loss and balance measurements.
+            update_log_dict(self.balance_history, balance)
+            update_log_dict(self.loss_history, loss)
             bot.save_bot(self.curr_model_dir)
+            self.save_training_log()
             
             # Evaluate the current bot.
             if evaluator.should_evaluate(cycle):
                 print('\nEvaluating bot, cycle {0}'.format(cycle))
                 evaluator.evaluate(bot)
+            
+            # Update random move policy.
+            self.random_policy.update(self.log_data)
                 
                 
-    def save_loss(self, loss, cycle):
-        loss['cycle'] = cycle
-        self.loss_history.append(loss)
-        with open(self.output_dir / 'loss_history.json', 'w') as file:
-            json.dump(self.loss_history, file, indent=2)
+    def save_training_log(self):
+        log_to_save = {**self.log_data}
+        log_to_save['random_policy'] = self.random_policy.get_state_dict()
+        with open(self.output_dir / 'training_log.json', 'w') as file:
+            json.dump(log_to_save, file, indent=2)
     
     
     def gain_experience(self):
@@ -105,28 +121,41 @@ class Trainer:
         """
         experience = []
         white_wins = 0; black_wins = 0
+        balance = { 
+            'white_win_moves' : 0, 
+            'black_win_moves' : 0, 
+            'draw_moves'  : 0
+        }
         
         message = '\rPlaying game {0}. Wins - w:{1} b:{2}'
         for i in range(self.episodes_per_cycle):
             print(message.format(i, white_wins, black_wins), end='')
                 
             # Play a game and collect the generated data.
-            episode = self_play(self.bot, None, self.move_limit, self.eps)
+            episode = self_play(self.bot, self.random_policy, self.move_limit)
             experience.append(episode)
             
             if episode['winner'] == 1: 
                 white_wins += 1
+                balance['white_win_moves'] += episode['players'].count(1)
+                
             elif episode['winner'] == -1:
                 black_wins += 1
+                balance['black_win_moves'] += episode['players'].count(-1)
+                
+            else:
+                balance['draw_moves'] += len(episode['players'])
         
         message = '\rFinished playing {0} games. Wins - w:{1} b:{2}'
-        print(message.format(self.episodes_per_cycle, white_wins, black_wins))
-        return experience
+        print(message.format(i+1, white_wins, black_wins))
+        return experience, balance
 
 
-def self_play(bot, starting_board=None, max_moves=0, eps=0):
-    """Gets the provided bot to play a single game of brandubh
-    against itself and returns a dict containing the game.
+def self_play(bot, random_policy, max_moves=0):
+    """Gets the provided bot to play a single game of brandubh against itself 
+    and returns a dict containing the game. To improve variation of game
+    states, random moves are occasionally selected according to the given
+    random move policy (See RandomMovePolicy classes).
     
     The retunred dict contains the following ordered lists:
         
@@ -149,12 +178,11 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
         target values (rewards) for in trainging data for the value head of the
         ZeroBot neural network.
     
-    The game will start from the given starting position if one is provided.
     The game will end in a draw if the number of moves exceeds 'max_moves'.
     """
     rand_bot = RandomBot()
     encoder = bot.get_encoder()
-    game = GameState.new_game(starting_board)
+    game = GameState.new_game()
         
     boards, moves_played, move_priors, tree_stats, players = [], [], [], [], []
     random_move = []
@@ -169,17 +197,12 @@ def self_play(bot, starting_board=None, max_moves=0, eps=0):
         tree_root = bot.root
         moves, _ = game.legal_moves()
         stats = tree_root.get_search_stats(moves)
+        visit_counts = tree_root.visit_counts()
         
-        # TODO: Maybe there should be a TreeNode method for the below
-        visit_counts = {}
-        for move in tree_root.branches.keys():
-            visit_counts[move] = tree_root.branches[move].visit_count
-        
-        if np.random.rand() < eps:
+        random_move.append(False)
+        if random_policy.make_random_move(game):
             action = rand_bot.select_move(game)
-            random_move.append(True)
-        else:
-            random_move.append(False)
+            random_move[-1] = True
         
         if action.is_play:
             # Encode and record the game-state as well as the visit counts and
@@ -222,3 +245,18 @@ def save_experience(output_dir, cycle, experience):
         filename = output_dir / f'game_{num}.json'
         with open(filename, 'w') as file:
             json.dump(episode, file, indent=2)
+
+
+
+def update_log_dict(history, loss):
+    for key, value in loss.items():
+        if isinstance(value, dict):
+            update_log_dict(history.setdefault(key, {}), value)
+        elif isinstance(value, list):
+            # Here we assume a training cycle trains for exactly 1 epoch, and 
+            # so there's only one loss value per cycle. If this is ever changes 
+            # and we want to record the loss value for several epochs every 
+            # cycle, we can use append instead.
+            history.setdefault(key, []).extend(value)
+        elif isinstance(value, int): 
+            history.setdefault(key, []).append(value)

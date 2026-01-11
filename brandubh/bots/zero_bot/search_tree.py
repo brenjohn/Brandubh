@@ -125,6 +125,12 @@ class TreeNode:
             return self.branches[move].visit_count
         return 0
     
+    def visit_counts(self):
+        return {
+            move : self.branches[move].visit_count
+            for move in self.branches.keys()
+        }
+    
     def is_not_terminal_leaf(self):
         return self.state.is_not_over()
     
