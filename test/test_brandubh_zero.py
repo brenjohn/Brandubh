@@ -5,13 +5,12 @@ Created on Tue Jan 10 20:07:46 2023
 
 @author: john
 """
-
 import unittest
 import numpy as np
 
 from brandubh.game import GameState
-from brandubh.bots.zero_bot.networks.zero_network import ZeroNet
-from brandubh.bots.zero_bot.networks.dual_network import DualNet
+from brandubh.bots.zero_bot.network_managers import ZeroNet
+from brandubh.bots.zero_bot.network_managers import DualNet
 from brandubh.bots.zero_bot.brandubh_zero import ZeroBot
         
         
@@ -25,6 +24,7 @@ class TestBrandubhZero(unittest.TestCase):
         bot = ZeroBot(evals_per_turn=140, batch_size=35, network=net)
         loss_weights = (1.0, 0.1)
         bot.compile_network(loss_weights)
+        encoder = bot.get_encoder()
         
         move = bot.select_move(self.game)
         self.assertTrue(move, "No move returned by bot")
@@ -36,24 +36,25 @@ class TestBrandubhZero(unittest.TestCase):
 
         # Test data expansion.
         exp = self.get_dummy_experience()
-        X, Y, R = bot.network.create_training_data(exp)
+        X, Y, R = encoder.create_training_data(exp)
         self.assertTrue(len(X) == len(Y))
         self.assertTrue(len(X) == len(R))
         
         # Test encoding and decoding priors
-        priors = exp[0]['prior_targets'][0]
+        priors = exp[0]['visit_counts'][0]
         N = sum(priors.values())
         priors = {k : v/N for k, v in priors.items()}
-        prior_tensor = net.encoder.encode_prior(priors)
-        decoded_priors = net.encoder.decode_policy(prior_tensor, priors.keys())
+        prior_tensor = encoder.encode_prior(priors)
+        decoded_priors = encoder.decode_policy(prior_tensor, priors.keys())
         for move in priors.keys():
             self.assertAlmostEqual(priors[move], decoded_priors[move])
     
     def test_play_DualNet(self):
-        net = DualNet()
+        net = DualNet({'encoder' : 'ThreePlaneEncoder'})
         bot = ZeroBot(evals_per_turn=140, batch_size=35, network=net)
         loss_weights = (1.0, 0.1)
         bot.compile_network(loss_weights)
+        encoder = bot.get_encoder()
         
         move = bot.select_move(self.game)
         self.assertTrue(move, "No move returned by bot")
@@ -65,126 +66,132 @@ class TestBrandubhZero(unittest.TestCase):
 
         # Test data expansion.
         exp = self.get_dummy_experience()
-        Xb, Xw, Yb, Yw, Rb, Rw = bot.network.create_training_data(exp)
+        white_data, black_data = encoder.create_training_data(exp)
+        Xw, Yw, Rw = white_data
+        Xb, Yb, Rb = black_data
         self.assertTrue(len(Xb) == len(Yb))
         self.assertTrue(len(Xw) == len(Yw))
         self.assertTrue(len(Xb) == len(Rb))
         self.assertTrue(len(Xw) == len(Rw))
         
         # Test encoding and decoding priors
-        priors = exp[0]['prior_targets'][0]
+        priors = exp[0]['visit_counts'][0]
         N = sum(priors.values())
         priors = {k : v/N for k, v in priors.items()}
-        prior_tensor = net.encoder.encode_prior(priors)
-        decoded_priors = net.encoder.decode_policy(prior_tensor, priors.keys())
+        prior_tensor = encoder.encode_prior(priors)
+        decoded_priors = encoder.decode_policy(prior_tensor, priors.keys())
         for move in priors.keys():
             self.assertAlmostEqual(priors[move], decoded_priors[move])
         
     def get_dummy_experience(self):
-        boards = np.array([[[0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [1., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.]],
+        boards = np.array([
+            [[0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [1., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.]],
 
-               [[0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [1., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.]],
+            [[0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [1., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.]],
 
-               [[0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 1., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.]],
+            [[0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 1., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.]],
 
-               [[1., 0., 0., 0., 0., 1.],
-                [1., 0., 0., 0., 0., 1.],
-                [0., 0., 1., 0., 0., 1.],
-                [0., 0., 1., 1., 0., 1.],
-                [0., 0., 1., 0., 0., 1.],
-                [1., 0., 0., 0., 0., 1.],
-                [1., 0., 0., 0., 0., 1.]],
+            [[1., 0., 0., 0., 0., 1.],
+             [1., 0., 0., 0., 0., 1.],
+             [0., 0., 1., 0., 0., 1.],
+             [0., 0., 1., 1., 0., 1.],
+             [0., 0., 1., 0., 0., 1.],
+             [1., 0., 0., 0., 0., 1.],
+             [1., 0., 0., 0., 0., 1.]],
 
-               [[0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 1., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.]],
+            [[0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 1., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.]],
 
-               [[0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [1., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.]],
+            [[0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [1., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.]],
 
-               [[0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [1., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.],
-                [0., 0., 0., 0., 0., 1.]]])
+            [[0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [1., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.],
+             [0., 0., 0., 0., 0., 1.]]
+        ])
 
-        priors = {(0, 3, 0, 2): 52,
-                 (0, 3, 0, 1): 68,
-                 (0, 3, 0, 4): 1,
-                 (0, 3, 0, 5): 1,
-                 (1, 3, 1, 2): 61,
-                 (1, 3, 1, 1): 62,
-                 (1, 3, 1, 0): 202,
-                 (1, 3, 1, 4): 60,
-                 (1, 3, 1, 5): 1,
-                 (1, 3, 1, 6): 58,
-                 (3, 0, 2, 0): 56,
-                 (3, 0, 1, 0): 62,
-                 (3, 0, 4, 0): 52,
-                 (3, 0, 5, 0): 1,
-                 (3, 1, 2, 1): 61,
-                 (3, 1, 1, 1): 91,
-                 (3, 1, 0, 1): 117,
-                 (3, 1, 4, 1): 56,
-                 (3, 1, 5, 1): 60,
-                 (3, 1, 6, 1): 130,
-                 (3, 5, 2, 5): 50,
-                 (3, 5, 1, 5): 55,
-                 (3, 5, 0, 5): 53,
-                 (3, 5, 4, 5): 51,
-                 (3, 5, 5, 5): 59,
-                 (3, 5, 6, 5): 55,
-                 (3, 6, 2, 6): 1,
-                 (3, 6, 1, 6): 1,
-                 (3, 6, 4, 6): 58,
-                 (3, 6, 5, 6): 59,
-                 (5, 3, 5, 2): 61,
-                 (5, 3, 5, 1): 56,
-                 (5, 3, 5, 0): 1,
-                 (5, 3, 5, 4): 52,
-                 (5, 3, 5, 5): 1,
-                 (5, 3, 5, 6): 66,
-                 (6, 3, 6, 2): 56,
-                 (6, 3, 6, 1): 60,
-                 (6, 3, 6, 4): 52,
-                 (6, 3, 6, 5): 1}
+        priors = {
+            (0, 3, 0, 2): 52,
+            (0, 3, 0, 1): 68,
+            (0, 3, 0, 4): 1,
+            (0, 3, 0, 5): 1,
+            (1, 3, 1, 2): 61,
+            (1, 3, 1, 1): 62,
+            (1, 3, 1, 0): 202,
+            (1, 3, 1, 4): 60,
+            (1, 3, 1, 5): 1,
+            (1, 3, 1, 6): 58,
+            (3, 0, 2, 0): 56,
+            (3, 0, 1, 0): 62,
+            (3, 0, 4, 0): 52,
+            (3, 0, 5, 0): 1,
+            (3, 1, 2, 1): 61,
+            (3, 1, 1, 1): 91,
+            (3, 1, 0, 1): 117,
+            (3, 1, 4, 1): 56,
+            (3, 1, 5, 1): 60,
+            (3, 1, 6, 1): 130,
+            (3, 5, 2, 5): 50,
+            (3, 5, 1, 5): 55,
+            (3, 5, 0, 5): 53,
+            (3, 5, 4, 5): 51,
+            (3, 5, 5, 5): 59,
+            (3, 5, 6, 5): 55,
+            (3, 6, 2, 6): 1,
+            (3, 6, 1, 6): 1,
+            (3, 6, 4, 6): 58,
+            (3, 6, 5, 6): 59,
+            (5, 3, 5, 2): 61,
+            (5, 3, 5, 1): 56,
+            (5, 3, 5, 0): 1,
+            (5, 3, 5, 4): 52,
+            (5, 3, 5, 5): 1,
+            (5, 3, 5, 6): 66,
+            (6, 3, 6, 2): 56,
+            (6, 3, 6, 1): 60,
+            (6, 3, 6, 4): 52,
+            (6, 3, 6, 5): 1
+        }
 
-        exp = {'boards'        : [boards,],
-               'moves'         : [(3, 1, 2, 1),],
-               'prior_targets' : [priors,],
-               'players'       : [1,],
-               'winner'        : 1}
-        
-        return [exp,]
+        return [{
+            'boards'        : [boards,],
+            'moves'         : [(3, 1, 2, 1),],
+            'visit_counts'  : [priors,],
+            'players'       : [1,],
+            'winner'        : 1
+        },]
 
 if __name__ == '__main__':
     unittest.main()

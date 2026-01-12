@@ -65,7 +65,7 @@ class ZeroDataManager():
         """
         # Expand the training data 8 fold.
         X, Y = self._expand_data(X, Y)
-        rewards = np.concatenate(8 * rewards)
+        rewards = np.tile(rewards, 8)
         return X, Y, rewards
         
     def _expand_data(self, X, Y):

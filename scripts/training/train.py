@@ -10,21 +10,14 @@ import sys
 sys.path.append("..")
 sys.path.append("../..")
 
-# configure tensorflow
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-import tensorflow as tf
-gpu_devices = tf.config.experimental.list_physical_devices('GPU')
-if gpu_devices:
-    for device in gpu_devices:
-        tf.config.experimental.set_memory_growth(device, True)
+# Note: This import configures tensorflow and suppresses its output.
+import brandubh.init_tf
 
 import toml
 import argparse
 from pathlib import Path
 
 from brandubh.bots.zero_bot import setup_output_dir, setup_bot, setup_trainer
-
 
 
 def main(parameter_file):
@@ -46,7 +39,6 @@ def main(parameter_file):
     # Start the training process.
     trainer.train()
         
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

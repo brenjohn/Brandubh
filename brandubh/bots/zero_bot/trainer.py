@@ -107,6 +107,10 @@ class Trainer:
             
             # Update random move policy.
             self.random_policy.update(self.log_data)
+            
+            # Cheak if the training loop should be broken.
+            if cycle == self.num_cycles:
+                break
                 
                 
     def save_training_log(self):

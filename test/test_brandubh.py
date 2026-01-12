@@ -5,10 +5,8 @@ Created on Sat May 15 15:19:41 2021
 
 @author: john
 """
-
 import unittest
 
-from numpy import zeros
 from brandubh.game import Act, GameSet, GameState
 
 

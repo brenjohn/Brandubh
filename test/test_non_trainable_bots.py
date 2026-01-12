@@ -5,8 +5,8 @@ Created on Mon Jan  9 22:44:58 2023
 
 @author: john
 """
-
 import unittest
+
 from brandubh.game import GameState
 from brandubh.bots.random_bot import RandomBot
 from brandubh.bots.greedy_random_bot import GreedyRandomBot

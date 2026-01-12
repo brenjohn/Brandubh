@@ -116,18 +116,18 @@ class BaseEncoder:
             
             visit_counts = episode['visit_counts']
             policy_targets = self.encode_priors(visit_counts)
+            Y.append(policy_targets)
             
-            # The reward for moves decays exponentially with the number of
-            # moves between it and the winning move. Rewards for moves made by 
-            # the winning side are positive and negative for the losing side.
-            episode_rewards = episode['winner'] * np.array(episode['players'])
-            rewards.append(episode_rewards)
-            
-            Y.append( policy_targets )
-          
-        # Convert the X, Y lists into numpy arrays
+            # Rewards for moves made by the winning side are positive and 
+            # negative for the losing side.
+            winner, players = episode['winner'], episode['players']
+            episode_rewards = [winner * player for player in players]
+            rewards.extend(episode_rewards)
+        
+        # Convert lists into numpy arrays.
         X = np.concatenate(X)
         Y = np.concatenate(Y)
+        rewards = np.array(rewards)
         return X, Y, rewards
     
 

@@ -5,10 +5,9 @@ Created on Sun Jan 15 14:27:30 2023
 
 @author: john
 """
-
 import unittest
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from brandubh.UI.view import BrandubhView
         
         
