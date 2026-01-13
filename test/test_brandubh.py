@@ -126,5 +126,6 @@ class TestGameState(unittest.TestCase):
         moves = game.legal_moves()
         self.assertTrue(moves)
 
+
 if __name__ == '__main__':
     unittest.main()

@@ -5,7 +5,7 @@ Created on Fri Jan  9 19:40:56 2026
 
 @author: john
 
-This submodule defines RnadomMovePolicy classes that can be used to decide when
+This submodule defines RandomMovePolicy classes that can be used to decide when
 a random move should be played during a sel play game.
 """
 

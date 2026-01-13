@@ -109,7 +109,7 @@ class Trainer:
             self.random_policy.update(self.log_data)
             
             # Cheak if the training loop should be broken.
-            if cycle == self.num_cycles:
+            if cycle == self.num_cycles - 1:
                 break
                 
                 

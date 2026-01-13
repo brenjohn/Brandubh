@@ -193,5 +193,6 @@ class TestBrandubhZero(unittest.TestCase):
             'winner'        : 1
         },]
 
+
 if __name__ == '__main__':
     unittest.main()

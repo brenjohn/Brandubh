@@ -5,7 +5,9 @@ Created on Mon Jan 12 15:31:19 2026
 
 @author: brennan
 """
-import os
+import sys
+sys.path.append('../')
+
 import shutil
 import unittest
 import tempfile
@@ -15,49 +17,6 @@ from brandubh.bots.zero_bot import setup_output_dir, setup_bot, setup_trainer
 
 
 class TestTrainingIntegration(unittest.TestCase):
-    
-    @classmethod
-    def setUpClass(cls):
-        # Use `SHOW_TEST_OUTPUT=1 python -m unittest` to show test std output.
-        cls.show_output = os.getenv('SHOW_TEST_OUTPUT', '0') == '1'
-        cls.mock_parameters = {}
-        cls.mock_parameters['ZeroBot'] = {
-            'evals_per_turn': 70,
-            'batch_size': 35,
-            'c_puct': 1.4,
-            'alpha': 0.15,
-            'sampling_turns': 6,
-            'Network': {
-                'type': 'ZeroNet',
-                'alpha': 0.0001,
-                'backbone_depth': 7,
-                'backbone_filters': 14,
-                'value_filters': 14,
-                'value_size_a': 14,
-                'value_size_b': 7,
-                'policy_filters': 14
-           }
-        }
-        cls.mock_parameters['Training'] = {
-            'num_cycles': 1,
-            'episodes_per_cycle': 1,
-            'move_limit': 70,
-            'batch_size': 16,
-            'random_move_policy': {'type': 'Constant', 'eps': 0.1},
-            'data': {'buffer_size': 256, 'epoch_size': 64}
-        }
-        cls.mock_parameters['Evaluation'] = {
-            'evaluation_rate': 7,
-            'opponents': {
-                'rand_1': {
-                    'type': 'RandomBot',
-                    'num_games': 10,
-                    'turn_limit': 70,
-                    'look_ahead': 1
-                }
-            }
-        }
-    
     
     @classmethod
     def tearDownClass(cls):
@@ -73,9 +32,50 @@ class TestTrainingIntegration(unittest.TestCase):
     
     def tearDown(self):
         self.temp_dir.cleanup()
+        
+        
+    def get_mock_parameters(self):
+        mock_parameters = {}
+        mock_parameters['ZeroBot'] = {
+            'evals_per_turn': 14,
+            'batch_size': 7,
+            'c_puct': 1.4,
+            'alpha': 0.15,
+            'sampling_turns': 6,
+            'Network': {
+                'type': 'ZeroNet',
+                'alpha': 0.0001,
+                'backbone_depth': 2,
+                'backbone_filters': 4,
+                'value_filters': 4,
+                'value_size_a': 4,
+                'value_size_b': 4,
+                'policy_filters': 4
+           }
+        }
+        mock_parameters['Training'] = {
+            'num_cycles': 1,
+            'episodes_per_cycle': 1,
+            'move_limit': 14,
+            'batch_size': 16,
+            'random_move_policy': {'type': 'Constant', 'eps': 0.1},
+            'data': {'buffer_size': 256, 'epoch_size': 64}
+        }
+        mock_parameters['Evaluation'] = {
+            'evaluation_rate': 7,
+            'opponents': {
+                'rand_1': {
+                    'type': 'RandomBot',
+                    'num_games': 2,
+                    'turn_limit': 14,
+                    'look_ahead': 1
+                }
+            }
+        }
+        return mock_parameters
     
     
-    def _run(self, params, name):
+    def _run(self, params):
         # Create mock parameter file.
         parameter_file = self.test_output_dir / 'empty_params.toml'
         with open(parameter_file, 'w') as file:
@@ -87,10 +87,10 @@ class TestTrainingIntegration(unittest.TestCase):
         trainer = setup_trainer(output_dir, bot, params)
         trainer.train()
         
-        output_dir = self.test_output_dir.glob(f'{name}_test')[0]
+        output_dir = next(self.test_output_dir.glob('*_test'), None)
         
         # Check if evaluations files exist.
-        evaluations_path = output_dir / 'evaluations'
+        evaluations_path = output_dir / 'evaluation'
         is_empty = next(evaluations_path.iterdir(), None) is None
         self.assertFalse(is_empty, "No evaluations created.")
         
@@ -114,15 +114,14 @@ class TestTrainingIntegration(unittest.TestCase):
     #=========================================================================#
     
     def test_zero_net(self):
-        parameters = self.mock_parameters
-        parameters['output_dir'] = 'zero_net_test'
-        name = 'zero_net'
-        self._run(parameters, name)
+        parameters = self.get_mock_parameters()
+        parameters['output_dir'] = str(self.test_output_dir / 'zero_net_test')
+        self._run(parameters)
         
         
     def test_dual_net(self):
-        parameters = self.mock_parameters
-        parameters['output_dir'] = 'dual_net_test'
+        parameters = self.get_mock_parameters()
+        parameters['output_dir'] = str(self.test_output_dir / 'dual_net_test')
         parameters['ZeroBot']['Network']['type'] = 'DualNet'
         parameters['Training']['random_move_policy'] = {
             'type'        : 'Balanced',
@@ -130,5 +129,8 @@ class TestTrainingIntegration(unittest.TestCase):
             'window_size' : 21,
             'gain'        : 0.1
         }
-        name = 'dual_net'
-        self._run(parameters, name)
+        self._run(parameters)
+    
+
+if __name__ == '__main__':
+    unittest.main()

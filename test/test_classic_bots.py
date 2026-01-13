@@ -56,5 +56,6 @@ class TestMCTSBot(unittest.TestCase):
         move = self.bot.select_move(self.game)
         self.assertTrue(move, "No move returned by bot")
 
+
 if __name__ == '__main__':
     unittest.main()

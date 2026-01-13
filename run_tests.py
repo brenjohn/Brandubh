@@ -14,7 +14,7 @@ def run_brandubh_tests():
     loader = unittest.TestLoader()
     suite = loader.discover('test', pattern='test_*.py')
     
-    runner = unittest.TextTestRunner(verbosity=1)
+    runner = unittest.TextTestRunner(verbosity=1, buffer=True)
     result = runner.run(suite)
     
     sys.exit(0 if result.wasSuccessful() else 1)
