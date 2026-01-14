@@ -4,16 +4,14 @@
 Created on Sun Dec 28 15:03:50 2025
 
 @author: john
-"""
 
-import sys
-sys.path.append("..")
-sys.path.append("../..")
+This script is used for training a ZeroBot to play brandubh.
+"""
 
 # Note: This import configures tensorflow and suppresses its output.
 import brandubh.init_tf
 
-import toml
+import tomli
 import argparse
 from pathlib import Path
 
@@ -24,8 +22,8 @@ def main(parameter_file):
     """Sets up and starts a training run for a zero bot.
     """
     # Read parameter file.
-    with open(parameter_file, 'r') as file:
-        params = toml.load(file)
+    with open(parameter_file, 'rb') as file:
+        params = tomli.load(file)
     
     # Create output directory for this training run.
     output_dir = setup_output_dir(parameter_file, params)

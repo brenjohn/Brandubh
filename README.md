@@ -37,7 +37,7 @@ To run unit tests use the following commands from the top level directory:
 ```
 python setup clean
 python setup.py build_ext --inplace
-python test_runner.py
+python run_tests.py
 ```
 
 If the coverage package is installed, a test coverage report can be generated
@@ -45,8 +45,7 @@ with:
 ```
 python setup clean
 CYTHON_TRACE=1 python setup.py build_ext --inplace
-coverage run test_runner.py
-coverage combine
+coverage run run_tests.py
 coverage report
 coverage html
 ```
