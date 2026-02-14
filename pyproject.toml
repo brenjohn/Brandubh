@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0", "Cython"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brandubh"
+version = "0.1.0"
+description = "A Python implementation of the Brandubh board game with AI bots."
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "tensorflow==2.4.1",
+    "keras==2.4.3",
+    "tomli"
+]
+
+[project.urls]
+Homepage = "https://github.com/brenjohn/Brandubh"

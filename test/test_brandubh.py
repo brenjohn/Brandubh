@@ -5,10 +5,8 @@ Created on Sat May 15 15:19:41 2021
 
 @author: john
 """
-
 import unittest
 
-from numpy import zeros
 from brandubh.game import Act, GameSet, GameState
 
 
@@ -127,6 +125,7 @@ class TestGameState(unittest.TestCase):
         game = GameState.new_game()
         moves = game.legal_moves()
         self.assertTrue(moves)
+
 
 if __name__ == '__main__':
     unittest.main()

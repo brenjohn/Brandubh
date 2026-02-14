@@ -12,6 +12,7 @@ First, create a new conda environment with the required dependencies installed:
 conda create --name brandubh python=3.8
 conda activate brandubh
 conda install numpy tensorflow=2.4.1 keras=2.4.3
+conda install Cython
 ```
 
 Then clone the repository:
@@ -36,7 +37,7 @@ To run unit tests use the following commands from the top level directory:
 ```
 python setup clean
 python setup.py build_ext --inplace
-python -m unittest
+python run_tests.py
 ```
 
 If the coverage package is installed, a test coverage report can be generated
@@ -44,8 +45,7 @@ with:
 ```
 python setup clean
 CYTHON_TRACE=1 python setup.py build_ext --inplace
-coverage run -m unittest discover
-coverage combine
+coverage run run_tests.py
 coverage report
 coverage html
 ```

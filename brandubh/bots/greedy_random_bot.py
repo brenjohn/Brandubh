@@ -10,15 +10,17 @@ This file defines a bot that greedily selects random moves to play in brandubh.
 import random
 from ..game import Act
 
+
 class GreedyRandomBot:
     """
     This bot looks at all legal moves it can make and randomly chooses a move
     that results in a win. If no so move exists a random move is selected.
     """
-    is_trainable = False
     
-    def __init__(self, filter_losing_moves = False):
+    
+    def __init__(self, filter_losing_moves = False, **kwargs):
         self.filter_losing_moves = filter_losing_moves
+    
     
     def select_move(self, game_state):
         """Choose a random valid move."""
@@ -37,6 +39,7 @@ class GreedyRandomBot:
         # return a random move from the list of candidates
         return Act.play(random.choice(candidates))
     
+    
     def remove_losing_moves(self, moves, game_state):
         """
         Returns a copy of the given list of oves but with the losing moves
@@ -46,6 +49,7 @@ class GreedyRandomBot:
         filtered_moves = filter(f, moves)
         filtered_moves = list(filtered_moves)
         return filtered_moves if filtered_moves else moves
+    
     
     def is_not_losing_move(self, move, game_state):
         """
@@ -58,5 +62,3 @@ class GreedyRandomBot:
         next_state.take_turn_with_no_checks(Act.play(move))
         all_moves, winning_moves = next_state.legal_moves()
         return False if winning_moves else True
-            
-        

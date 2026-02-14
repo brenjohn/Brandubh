@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Dec 28 15:03:50 2025
+
+@author: john
+
+This script is used for training a ZeroBot to play brandubh.
+"""
+
+# Note: This import configures tensorflow and suppresses its output.
+import brandubh.init_tf
+
+import tomli
+import argparse
+from pathlib import Path
+
+from brandubh.bots.zero_bot import setup_output_dir, setup_bot, setup_trainer
+
+
+def main(parameter_file):
+    """Sets up and starts a training run for a zero bot.
+    """
+    # Read parameter file.
+    with open(parameter_file, 'rb') as file:
+        params = tomli.load(file)
+    
+    # Create output directory for this training run.
+    output_dir = setup_output_dir(parameter_file, params)
+    
+    # Create the bot to be trained.
+    bot = setup_bot(params)
+    
+    # Set up a trainer object to train and monitor the bot.
+    trainer = setup_trainer(output_dir, bot, params)
+    
+    # Start the training process.
+    trainer.train()
+        
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description="Train a Brandubh model."
+    )
+    parser.add_argument(
+        '--parameter_file', 
+        type=Path,
+        default='./train_parameters.toml',
+        help="Path to the training parameter file"
+    )
+    
+    parameter_file = parser.parse_args().parameter_file
+    main(parameter_file)
